@@ -106,6 +106,10 @@ input,select,textarea{font-family:inherit;}
 #topbar h1{font-family:var(--font-display); font-size:21px; font-weight:600;}
 #topbar .sub{font-size:12.5px; color:var(--text-3);}
 #topbar .actions{display:flex; align-items:center; gap:10px;}
+.period-filter{display:flex;align-items:center;gap:7px;padding:4px 6px 4px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-2);}
+.period-filter label{font-size:10px;font-weight:700;letter-spacing:.45px;text-transform:uppercase;color:var(--text-3);}
+.period-filter .select{width:auto;min-width:88px;border:0;background:transparent;padding-top:4px;padding-bottom:4px;}
+.period-filter .period-arrow{color:var(--text-3);font-size:12px;}
 #menuToggle{display:none;}
 
 .btn{
@@ -343,7 +347,10 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   #topbar .sub{display:none;}
   #topbar .title-wrap{min-width:0;}
   #topbar h1{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  #topbar .actions{gap:6px;}
+  #topbar{align-items:flex-start;flex-wrap:wrap;}
+  #topbar .actions{gap:6px;width:100%;justify-content:flex-end;}
+  .period-filter{flex:1;display:grid;grid-template-columns:auto minmax(72px,1fr) auto auto minmax(72px,1fr);gap:4px;padding-left:8px;}
+  .period-filter .select{min-width:0;width:100%;padding-left:4px;padding-right:20px;}
   #topbar .source-status{display:none;}
   #topbar .actions .btn-primary{padding:9px 10px;}
   #topbar .actions .btn-primary svg{display:none;}
@@ -386,7 +393,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
         <svg class="foot-occ-ring" viewBox="0 0 36 36" id="footRing"></svg>
         <div>
           <b id="footOccVal">0%</b>
-          <span>Ocupação · <span id="footYear">2026</span></span>
+          <span>Ocupação · <span id="footYear">Jan/26–Dez/26</span></span>
         </div>
       </div>
     </div>
@@ -405,7 +412,11 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
         </div>
       </div>
       <div class="actions">
-        <select class="select" id="yearSelect"></select>
+        <div class="period-filter" aria-label="Filtro por período">
+          <label for="periodStart">De</label><select class="select" id="periodStart"></select>
+          <span class="period-arrow">→</span>
+          <label for="periodEnd">Até</label><select class="select" id="periodEnd"></select>
+        </div>
         <button class="icon-btn" id="themeToggle" aria-label="Alternar tema"></button>
         <span class="source-status" id="sourceStatus">Planilha carregada</span>
       </div>
@@ -505,7 +516,8 @@ function seedDespesas(){
 let state = {
   theme:'dark',
   view:'dashboard',
-  year: new Date().getFullYear()>=2026? new Date().getFullYear():2026,
+  periodStart:'2026-01',
+  periodEnd:'2026-12',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
   reservas: [],
@@ -665,9 +677,28 @@ function computeMonthStats(year,month){
   return {dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,lucroConf,lucroProj,
     margemConf: receitaConf>0?lucroConf/receitaConf:0, tentativeNights:tentativeSet.size};
 }
-function computeYearStats(year){
-  const months = [...Array(12).keys()].map(m=>computeMonthStats(year,m));
-  const dias = daysInYear(year);
+function monthKey(year,month){ return `${year}-${pad(month+1)}`; }
+function parseMonthKey(key){ const [year,month]=key.split('-').map(Number); return {year,month:month-1}; }
+function periodMonths(startKey=state.periodStart,endKey=state.periodEnd){
+  const start=parseMonthKey(startKey), end=parseMonthKey(endKey), months=[];
+  let cursor=new Date(start.year,start.month,1), last=new Date(end.year,end.month,1);
+  while(cursor<=last){
+    const year=cursor.getFullYear(), month=cursor.getMonth();
+    months.push({year,month,key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`,stats:computeMonthStats(year,month)});
+    cursor=new Date(year,month+1,1);
+  }
+  return months;
+}
+function dateInPeriod(date){
+  if(!date) return false;
+  const key=monthKey(date.getFullYear(),date.getMonth());
+  return key>=state.periodStart && key<=state.periodEnd;
+}
+function reservationInPeriod(r){ return nightsOf(r).some(k=>dateInPeriod(parseISO(k))); }
+function computePeriodStats(){
+  const period = periodMonths();
+  const months = period.map(item=>item.stats);
+  const dias = months.reduce((total,item)=>total+item.dias,0);
   const sum = (k)=>months.reduce((s,m)=>s+m[k],0);
   const alugadas = sum('alugadas');
   const receitaConf = sum('receitaConf'), receitaProj=sum('receitaProj');
@@ -679,19 +710,20 @@ function computeYearStats(year){
   const ocupacao = dias>0? alugadas/dias:0;
   const adr = alugadas>0? receitaConf/alugadas:0;
   const revpar = dias>0? receitaConf/dias:0;
-  const reservasNoAno = state.reservas.filter(r=>blocking(r) && nightsInYear(r,year)>0);
-  const reservasConfNoAno = reservasNoAno.filter(confirmedSt);
-  const losMedio = reservasNoAno.length? reservasNoAno.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasNoAno.length:0;
-  const ticketMedio = reservasConfNoAno.length? receitaConf/reservasConfNoAno.length:0;
-  const saldoReceber = state.reservas.filter(r=>blocking(r) && nightsInYear(r,year)>0).reduce((s,r)=>s+computeR(r).balance,0);
-  return {months,dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,
+  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && reservationInPeriod(r));
+  const reservasConfPeriodo = reservasPeriodo.filter(confirmedSt);
+  const losMedio = reservasPeriodo.length? reservasPeriodo.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasPeriodo.length:0;
+  const ticketMedio = reservasConfPeriodo.length? receitaConf/reservasConfPeriodo.length:0;
+  const saldoReceber = reservasPeriodo.reduce((s,r)=>s+computeR(r).balance,0);
+  return {period,months,dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,
     lucroConf,lucroProj,margemConf:receitaConf>0?lucroConf/receitaConf:0,adr,revpar,losMedio,ticketMedio,saldoReceber,
-    numReservas:reservasNoAno.length};
+    numReservas:reservasPeriodo.length};
 }
-function channelBreakdown(year){
+function channelBreakdown(){
   const map={};
   state.reservas.forEach(r=>{
-    if(!blocking(r)) return; const n=nightsInYear(r,year); if(n<=0) return;
+    if(!blocking(r)) return;
+    const n=nightsOf(r).filter(k=>dateInPeriod(parseISO(k))).length; if(n<=0) return;
     const c = computeR(r); const share = c.nights>0? c.grossRevenue*(n/c.nights):0;
     map[r.canal]=map[r.canal]||{receita:0,count:0}; map[r.canal].receita+=share; map[r.canal].count+=1;
   });
@@ -754,26 +786,27 @@ function ringSVG(pct, size=168, stroke=14, colorVar='--teal'){
   </svg>`;
 }
 function updateFootRing(){
-  const ys = computeYearStats(state.year);
+  const ys = computePeriodStats();
   document.getElementById('footRing').outerHTML = ringSVG(ys.ocupacao,36,4).replace('<svg ','<svg id="footRing" ');
   document.getElementById('footOccVal').textContent = fmtPct(ys.ocupacao);
-  document.getElementById('footYear').textContent = state.year;
+  document.getElementById('footYear').textContent = periodLabel();
 }
 
 /* ================================================================
    VIEW: DASHBOARD
    ================================================================ */
 function viewDashboard(){
-  const ys = computeYearStats(state.year);
-  const upcoming = state.reservas.filter(r=>blocking(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
+  const ys = computePeriodStats();
+  const rangeLabel = periodLabel();
+  const upcoming = state.reservas.filter(r=>blocking(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
     .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin)).slice(0,5);
-  const conflicts = [...findConflicts()];
-  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
+  const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
+  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
 
   const html = `
   <div class="hero">
     <div class="card hero-ring-card">
-      <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação ${state.year}</span></div></div>
+      <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação no período</span></div></div>
       <div style="font-size:12px;color:var(--text-3)">${fmtNum(ys.alugadas)} diárias alugadas de ${fmtNum(ys.dias)} dias</div>
     </div>
     <div class="hero-side">
@@ -785,20 +818,20 @@ function viewDashboard(){
         <div class="card kpi"><span class="lbl">Diária média (ADR)</span><span class="val">${fmtMoney(ys.adr)}</span>
           <span class="delta">RevPAR ${fmtMoney(ys.revpar)}</span></div>
         <div class="card kpi ${ys.saldoReceber>0?'kpi-accent-coral':''}"><span class="lbl">Saldo a receber</span><span class="val">${fmtMoney(ys.saldoReceber)}</span>
-          <span class="delta">${ys.numReservas} reserva(s) no ano</span></div>
+          <span class="delta">${ys.numReservas} reserva(s) no período</span></div>
       </div>
       <div class="grid mini-grid">
         <div class="card kpi"><span class="lbl">LOS médio</span><span class="val">${ys.losMedio.toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span class="delta">noites por reserva</span></div>
         <div class="card kpi"><span class="lbl">Ticket médio</span><span class="val">${fmtMoney(ys.ticketMedio)}</span><span class="delta">por reserva confirmada</span></div>
         <div class="card kpi"><span class="lbl">Despesas gerais</span><span class="val">${fmtMoney(ys.despesasGerais)}</span><span class="delta">não vinculadas a reservas</span></div>
-        <div class="card kpi"><span class="lbl">Dias disponíveis</span><span class="val">${fmtNum(ys.disponiveis)}</span><span class="delta">ainda livres em ${state.year}</span></div>
+        <div class="card kpi"><span class="lbl">Dias disponíveis</span><span class="val">${fmtNum(ys.disponiveis)}</span><span class="delta">ainda livres no período</span></div>
       </div>
     </div>
   </div>
 
   <div class="two-col">
     <div class="card chart-card">
-      <div class="card-head"><h3>Receita, custos e lucro por mês</h3><span class="hint">${state.year} · valores confirmados</span></div>
+      <div class="card-head"><h3>Receita, custos e lucro por mês</h3><span class="hint">${rangeLabel} · valores confirmados</span></div>
       <div class="chart-box tall"><canvas id="chartMonthly"></canvas></div>
     </div>
     <div class="card">
@@ -825,7 +858,7 @@ function viewDashboard(){
           <div class="lr-val">${fmtMoney(c.grossRevenue)}</div></div>`;}).join('')}
     </div>
     <div class="card chart-card">
-      <div class="card-head"><h3>Receita por canal</h3><span class="hint">${state.year}</span></div>
+      <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel}</span></div>
       <div class="chart-box"><canvas id="chartChannel"></canvas></div>
     </div>
   </div>`;
@@ -837,7 +870,7 @@ function viewDashboard(){
   const months = ys.months;
   new Chart(document.getElementById('chartMonthly'),{
     type:'bar',
-    data:{ labels:MESES_ABR, datasets:[
+    data:{ labels:ys.period.map(item=>item.label), datasets:[
       {label:'Receita', data:months.map(m=>m.receitaConf), backgroundColor:cssv('--teal'), borderRadius:5, maxBarThickness:22},
       {label:'Custos + Despesas', data:months.map(m=>m.custosConf+m.despesasGerais), backgroundColor:cssv('--coral'), borderRadius:5, maxBarThickness:22},
       {label:'Lucro', data:months.map(m=>m.lucroConf), backgroundColor:cssv('--gold'), borderRadius:5, maxBarThickness:22},
@@ -845,7 +878,7 @@ function viewDashboard(){
     options: chartOpts({stacked:false})
   });
 
-  const chBreak = channelBreakdown(state.year);
+  const chBreak = channelBreakdown();
   const chLabels = Object.keys(chBreak);
   new Chart(document.getElementById('chartChannel'),{
     type:'doughnut',
@@ -973,6 +1006,7 @@ function openDayDetail(dateKeyStr,occ){
 function filteredReservas(){
   const f = state.filters.reservas;
   return state.reservas.filter(r=>{
+    if(!reservationInPeriod(r)) return false;
     if(f.status && r.status!==f.status) return false;
     if(f.canal && r.canal!==f.canal) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!(r.hospede.toLowerCase().includes(s)||r.id.toLowerCase().includes(s)||(r.periodo||'').toLowerCase().includes(s))) return false; }
@@ -1122,6 +1156,7 @@ function openReservaForm(id, prefillCheckin){
 function filteredDespesas(){
   const f = state.filters.despesas;
   return state.despesas.filter(e=>{
+    if(!dateInPeriod(parseISO(e.data))) return false;
     if(f.categoria && e.categoria!==f.categoria) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!((e.descricao||'').toLowerCase().includes(s)||(e.id||'').toLowerCase().includes(s))) return false; }
     return true;
@@ -1227,28 +1262,30 @@ function confirmDelete(kind,id){
    VIEW: RELATÓRIOS
    ================================================================ */
 function viewRelatorios(){
-  const ys = computeYearStats(state.year);
-  const chBreak = channelBreakdown(state.year);
+  const ys = computePeriodStats();
+  const chBreak = channelBreakdown();
+  const rangeLabel = periodLabel();
   const html = `
   <div class="two-col-equal">
-    <div class="card chart-card"><div class="card-head"><h3>Ocupação mensal</h3><span class="hint">${state.year}</span></div><div class="chart-box"><canvas id="rOcc"></canvas></div></div>
-    <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">${state.year} · confirmadas</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
-    <div class="card chart-card"><div class="card-head"><h3>Reservas por canal</h3><span class="hint">${state.year}</span></div><div class="chart-box"><canvas id="rChannel"></canvas></div></div>
+    <div class="card chart-card"><div class="card-head"><h3>Ocupação mensal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rOcc"></canvas></div></div>
+    <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">${rangeLabel} · confirmadas</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
+    <div class="card chart-card"><div class="card-head"><h3>Reservas por canal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rChannel"></canvas></div></div>
     <div class="card">
       <div class="card-head"><h3>Resumo por mês</h3><span class="hint">estilo painel original</span></div>
       <div class="table-wrap" style="border:none;">
         <table style="min-width:0;">
           <thead><tr><th>Mês</th><th class="num">Alugadas</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
-          <tbody>${ys.months.map((m,i)=>`<tr><td>${MESES_ABR[i]}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
+          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
         </table>
       </div>
     </div>
   </div>`;
   document.getElementById('view-root').innerHTML = html;
   if(!ensureChartSupport()) return;
-  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:MESES_ABR, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--teal'),backgroundColor:cssv('--teal-glow'),fill:true,tension:.35,pointRadius:3}]},
+  const periodLabels = ys.period.map(item=>item.label);
+  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--teal'),backgroundColor:cssv('--teal-glow'),fill:true,tension:.35,pointRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:cssv('--text-3'),font:{size:11}}},y:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(1)+'%'}}}} });
-  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:MESES_ABR, datasets:[{label:'ADR',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--gold'),borderRadius:5,maxBarThickness:22}]},
+  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:periodLabels, datasets:[{label:'ADR',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--gold'),borderRadius:5,maxBarThickness:22}]},
     options: chartOpts() });
   const chLabels = Object.keys(chBreak);
   new Chart(document.getElementById('rChannel'),{ type:'bar', data:{ labels: chLabels.length?chLabels:['Sem dados'], datasets:[{label:'Reservas',data:chLabels.length?chLabels.map(k=>chBreak[k].count):[0],backgroundColor:cssv('--teal'),borderRadius:5,maxBarThickness:26}]},
@@ -1270,9 +1307,10 @@ function viewConfig(){
       </div>
     </div>
     <div class="card">
-      <h3>Ano de referência</h3>
+      <h3>Período de referência</h3>
       <div class="subtle-divider"></div>
-      <div class="field"><label>Ano exibido no painel e relatórios</label><select class="select" id="cfgYear" style="width:100%;"></select></div>
+      <p style="font-size:12.5px;color:var(--text-3);">Use os seletores “De” e “Até” no topo para definir os meses exibidos em todo o aplicativo.</p>
+      <div class="calc-note" style="margin-top:12px;">Período atual: <b>${periodLabel()}</b></div>
     </div>
     <div class="card">
       <h3>Origem dos dados</h3>
@@ -1289,8 +1327,6 @@ function viewConfig(){
   </div>`;
   document.getElementById('view-root').innerHTML = html;
   document.getElementById('themeSwitch').addEventListener('click',toggleTheme);
-  const sel = document.getElementById('cfgYear'); fillYearSelect(sel);
-  sel.addEventListener('change',()=>{ state.year=Number(sel.value); syncYearSelect(); render(); });
 }
 function exportData(){
   const blob = new Blob([JSON.stringify({reservas:state.reservas,despesas:state.despesas,exportedAt:new Date().toISOString()},null,2)],{type:'application/json'});
@@ -1326,21 +1362,47 @@ function updateThemeIcon(){
   document.getElementById('themeToggle').innerHTML = icon(state.theme==='dark'?'sun':'moon',16);
 }
 
-/* ---------------- YEAR SELECT ---------------- */
-function fillYearSelect(sel){
-  const years = new Set([state.year]);
-  state.reservas.forEach(r=>{ if(r.checkin) years.add(parseISO(r.checkin).getFullYear()); if(r.checkout) years.add(parseISO(r.checkout).getFullYear()); });
-  const arr = [...years].sort((a,b)=>a-b);
-  sel.innerHTML = arr.map(y=>`<option value="${y}" ${y===state.year?'selected':''}>${y}</option>`).join('');
+/* ---------------- PERIOD SELECT ---------------- */
+function periodLabel(){
+  const format=key=>{ const {year,month}=parseMonthKey(key); return `${MESES_ABR[month]}/${String(year).slice(-2)}`; };
+  return `${format(state.periodStart)}–${format(state.periodEnd)}`;
 }
-function syncYearSelect(){ fillYearSelect(document.getElementById('yearSelect')); updateFootRing(); }
-document.getElementById('yearSelect').addEventListener('change',(e)=>{ state.year=Number(e.target.value); updateFootRing(); render(); });
+function availablePeriodOptions(){
+  const years=[];
+  state.reservas.forEach(r=>{ const a=parseISO(r.checkin), b=parseISO(r.checkout); if(a) years.push(a.getFullYear()); if(b) years.push(b.getFullYear()); });
+  state.despesas.forEach(e=>{ const d=parseISO(e.data); if(d) years.push(d.getFullYear()); });
+  const currentYear=parseMonthKey(state.periodStart).year;
+  const minYear=Math.min(currentYear,...years), maxYear=Math.max(currentYear,...years);
+  const options=[];
+  for(let year=minYear;year<=maxYear;year++) for(let month=0;month<12;month++) options.push({key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`});
+  return options;
+}
+function syncPeriodSelects(){
+  const options=availablePeriodOptions();
+  [['periodStart',state.periodStart],['periodEnd',state.periodEnd]].forEach(([id,value])=>{
+    const select=document.getElementById(id);
+    select.innerHTML=options.map(item=>`<option value="${item.key}" ${item.key===value?'selected':''}>${item.label}</option>`).join('');
+  });
+  updateFootRing();
+}
+function changePeriod(changed){
+  const start=document.getElementById('periodStart').value, end=document.getElementById('periodEnd').value;
+  if(start>end){
+    if(changed==='start') state.periodEnd=start;
+    else state.periodStart=end;
+  }else{
+    state.periodStart=start; state.periodEnd=end;
+  }
+  render();
+}
+document.getElementById('periodStart').addEventListener('change',()=>changePeriod('start'));
+document.getElementById('periodEnd').addEventListener('change',()=>changePeriod('end'));
 
 /* ---------------- MAIN RENDER DISPATCH ---------------- */
 function render(){
   renderNav();
   syncSidebar();
-  syncYearSelect();
+  syncPeriodSelects();
   updateThemeIcon();
   const map = {dashboard:viewDashboard, agenda:viewAgenda, reservas:viewReservas, despesas:viewDespesas, relatorios:viewRelatorios, config:viewConfig};
   (map[state.view]||viewDashboard)();
@@ -1364,11 +1426,12 @@ async function boot(){
     return;
   }
 
-  // default calendar/year to most relevant period (latest reservation) if any
+  // default calendar and filter to the full year of the latest check-in
   if(state.reservas.length){
     const latest = [...state.reservas].sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin))[0];
     const d0 = parseISO(latest.checkin);
-    state.calMonth = d0.getMonth(); state.calYear = d0.getFullYear(); state.year = d0.getFullYear();
+    state.calMonth = d0.getMonth(); state.calYear = d0.getFullYear();
+    state.periodStart = `${d0.getFullYear()}-01`; state.periodEnd = `${d0.getFullYear()}-12`;
   }
   render();
   toast(`${state.reservas.length} reserva(s) e ${state.despesas.length} despesa(s) carregadas.`);
