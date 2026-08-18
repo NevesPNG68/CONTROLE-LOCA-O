@@ -301,15 +301,24 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .chart-box{position:relative; height:260px; width:100%;}
 .chart-box canvas{position:absolute; inset:0; width:100% !important; height:100% !important;}
 .chart-box.tall{height:320px;}
-.channel-chart-box{max-width:360px;margin:0 auto;}
-.attention-card{align-self:start;}
 .attention-clear{display:flex;align-items:center;gap:12px;padding:14px;border-radius:var(--radius-md);background:var(--teal-glow);color:var(--text-2);}
 .attention-clear .avatar{background:color-mix(in srgb,var(--teal) 14%,transparent);color:var(--teal);}
 .attention-clear>div:last-child{min-width:0;}
 .attention-clear b{display:block;color:var(--text-1);font-size:13px;margin-bottom:2px;}
 .attention-clear span{display:block;font-size:12px;color:var(--text-3);}
-.dashboard-columns{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start;}
-.dashboard-stack{display:grid;gap:16px;min-width:0;align-content:start;}
+.dashboard-financial-card{margin-bottom:16px;}
+.dashboard-summary-grid{display:grid;grid-template-columns:minmax(0,1.45fr) repeat(2,minmax(230px,1fr));gap:16px;align-items:stretch;}
+.summary-card{min-width:0;min-height:158px;display:flex;flex-direction:column;}
+.summary-card .card-head{margin-bottom:12px;}
+.summary-card .list-row{padding:8px 0;}
+.summary-card .attention-clear{flex:1;}
+.channel-list{display:grid;gap:12px;}
+.channel-row-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:12px;}
+.channel-row-head b{font-size:13px;}
+.channel-row-head span{font-family:var(--font-mono);font-weight:600;}
+.channel-meter{height:7px;margin-top:7px;border-radius:999px;background:var(--border-soft);overflow:hidden;}
+.channel-meter i{display:block;height:100%;border-radius:inherit;background:var(--teal);}
+.channel-share{display:block;margin-top:5px;color:var(--text-3);font-size:11px;}
 .two-col{display:grid; grid-template-columns:1.4fr 1fr; gap:16px;}
 .two-col-equal{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;}
 .two-col > *, .two-col-equal > *{min-width:0;}
@@ -320,12 +329,8 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 }
 @media(max-width:980px){
   .two-col{grid-template-columns:1fr;}
-  .dashboard-columns{display:flex;flex-direction:column;}
-  .dashboard-stack{display:contents;}
-  .monthly-card{order:1;}
-  .attention-card{order:2;}
-  .upcoming-card{order:3;}
-  .channel-card{order:4;}
+  .dashboard-summary-grid{grid-template-columns:1fr 1fr;}
+  .upcoming-card{grid-column:1/-1;}
 }
 
 /* upcoming list */
@@ -354,6 +359,8 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   #view-root{padding:18px 16px 50px;}
 }
 @media(max-width:560px){
+  .dashboard-summary-grid{grid-template-columns:1fr;}
+  .upcoming-card{grid-column:auto;}
   .mini-grid{grid-template-columns:1fr;}
   .cal-summary-bar{grid-template-columns:repeat(2,minmax(0,1fr));}
   .cal-grid{gap:4px;}
@@ -819,6 +826,9 @@ function viewDashboard(){
     .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin)).slice(0,5);
   const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
   const overdue = state.reservas.filter(r=>{ const c=computeR(r); return reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
+  const chBreak = channelBreakdown();
+  const channelEntries = Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
+  const channelTotal = channelEntries.reduce((sum,[,data])=>sum+data.receita,0);
 
   const html = `
   <div class="hero">
@@ -846,13 +856,13 @@ function viewDashboard(){
     </div>
   </div>
 
-  <div class="dashboard-columns">
-    <div class="dashboard-stack">
-    <div class="card chart-card monthly-card">
+  <div class="card chart-card dashboard-financial-card">
       <div class="card-head"><h3>Receita, custos e lucro por mês</h3><span class="hint">${rangeLabel} · valores confirmados</span></div>
       <div class="chart-box tall"><canvas id="chartMonthly"></canvas></div>
-    </div>
-    <div class="card upcoming-card">
+  </div>
+
+  <div class="dashboard-summary-grid">
+    <div class="card summary-card upcoming-card">
       <div class="card-head"><h3>Próximas reservas</h3><span class="hint">a partir de hoje</span></div>
       ${upcoming.length===0? `<div class="empty-state">${icon('calendar',30)}<b>Nenhuma reserva futura</b>Atualize a planilha quando houver uma nova reserva.</div>`:
         upcoming.map(r=>{ const c=computeR(r); const initials=(r.hospede||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -860,10 +870,8 @@ function viewDashboard(){
           <div class="lr-main"><b>${r.hospede}</b><span>${fmtDate(r.checkin)} → ${fmtDate(r.checkout)} · ${c.nights}d · ${r.canal}</span></div>
           <div class="lr-val">${fmtMoney(c.grossRevenue)}</div></div>`;}).join('')}
     </div>
-    </div>
-    <div class="dashboard-stack">
-    <div class="card attention-card">
-      <div class="card-head"><h3>Pendências e conflitos</h3><span class="hint">${conflicts.length+overdue.length===0?'Nenhuma pendência':`${conflicts.length+overdue.length} item(ns)`}</span></div>
+    <div class="card summary-card attention-card">
+      <div class="card-head"><h3>Status operacional</h3><span class="hint">${conflicts.length+overdue.length===0?'Em ordem':`${conflicts.length+overdue.length} item(ns)`}</span></div>
       ${conflicts.length===0 && overdue.length===0? `<div class="attention-clear"><div class="avatar">${icon('check',17)}</div><div><b>Nenhuma ação necessária</b><span>Não há datas sobrepostas nem saldos vencidos neste período.</span></div></div>`:''}
       ${conflicts.map(id=>{ const r=state.reservas.find(x=>x.id===id); if(!r) return ''; return `
         <div class="list-row"><div class="avatar" style="background:var(--coral-glow);color:var(--coral)">${icon('alert',16)}</div>
@@ -874,10 +882,12 @@ function viewDashboard(){
           <div class="lr-main"><b>Saldo em aberto — ${r.hospede}</b><span>Check-out ${fmtDate(r.checkout)} · ${r.id}</span></div>
           <div class="lr-val">${fmtMoney(c.balance)}</div></div>`; }).join('')}
     </div>
-    <div class="card chart-card channel-card">
+    <div class="card summary-card channel-card">
       <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel}</span></div>
-      <div class="chart-box channel-chart-box"><canvas id="chartChannel"></canvas></div>
-    </div>
+      ${channelEntries.length? `<div class="channel-list">${channelEntries.map(([name,data])=>{ const share=channelTotal>0?data.receita/channelTotal:0; return `
+        <div class="channel-row"><div class="channel-row-head"><b>${name}</b><span>${fmtMoney(data.receita)}</span></div>
+          <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · ${data.count} reserva(s)</span></div>`; }).join('')}</div>`:
+        `<div class="empty-state" style="padding:12px 0;">${icon('chart',24)}<b>Sem receita no período</b></div>`}
     </div>
   </div>`;
 
@@ -896,17 +906,6 @@ function viewDashboard(){
     options: chartOpts({stacked:false})
   });
 
-  const chBreak = channelBreakdown();
-  const chLabels = Object.keys(chBreak);
-  new Chart(document.getElementById('chartChannel'),{
-    type:'doughnut',
-    data:{ labels: chLabels.length?chLabels:['Sem dados'], datasets:[{
-      data: chLabels.length? chLabels.map(k=>chBreak[k].receita):[1],
-      backgroundColor: chLabels.length? chLabels.map((_,i)=>[cssv('--teal'),cssv('--gold'),cssv('--coral'),cssv('--teal-dim'),cssv('--gold-dim'),cssv('--text-3')][i%6]):[cssv('--border')],
-      borderWidth:0,
-    }]},
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom',labels:{color:cssv('--text-2'),boxWidth:10,font:{size:11}}}}, cutout:'62%' }
-  });
 }
 
 function cssv(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
