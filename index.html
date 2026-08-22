@@ -27,13 +27,13 @@ html[data-theme="dark"]{
   --shadow:0 12px 32px rgba(0,0,0,.35);
 }
 html[data-theme="light"]{
-  --bg:#EEF3F1; --bg-1:#F7FAF9; --bg-2:#FFFFFF; --bg-3:#FFFFFF;
-  --border:#DCE6E2; --border-soft:#E6EFEC;
-  --text-1:#0E211E; --text-2:#4C6560; --text-3:#7C948E;
-  --teal:#158C7D; --teal-dim:#D4F0EB; --teal-glow:rgba(21,140,125,.10);
-  --gold:#B4790C; --gold-dim:#FCE9C4; --gold-glow:rgba(180,121,12,.12);
-  --coral:#C64530; --coral-dim:#FBDCD4; --coral-glow:rgba(198,69,48,.10);
-  --shadow:0 12px 28px rgba(20,40,35,.10);
+  --bg:#E5ECE9; --bg-1:#F3F7F5; --bg-2:#FFFFFF; --bg-3:#F8FAF9;
+  --border:#BFCFC9; --border-soft:#D1DDD9;
+  --text-1:#0E211E; --text-2:#344E49; --text-3:#5B746E;
+  --teal:#0E7A6D; --teal-dim:#B9E2DA; --teal-glow:rgba(14,122,109,.14);
+  --gold:#956400; --gold-dim:#F3D89F; --gold-glow:rgba(149,100,0,.14);
+  --coral:#B43B28; --coral-dim:#F2C7BE; --coral-glow:rgba(180,59,40,.13);
+  --shadow:0 12px 28px rgba(20,40,35,.14);
 }
 *{box-sizing:border-box; margin:0; padding:0;}
 body{
@@ -112,6 +112,7 @@ input,select,textarea{font-family:inherit;}
 .period-filter .period-arrow{color:var(--text-2);font-size:12px;}
 .period-filter:focus-within{border-color:var(--teal-dim);box-shadow:0 0 0 3px var(--teal-glow);}
 html[data-theme="dark"] .period-filter .select option{background:var(--bg-2);color:var(--text-1);}
+.channel-select{width:136px;}
 #menuToggle{display:none;}
 
 .btn{
@@ -377,6 +378,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   #topbar .actions{gap:6px;width:100%;justify-content:flex-end;}
   .period-filter{flex:1;display:grid;grid-template-columns:auto minmax(72px,1fr) auto auto minmax(72px,1fr);gap:4px;padding-left:8px;}
   .period-filter .select{min-width:0;width:100%;padding-left:4px;padding-right:20px;}
+  .channel-select{width:100%;max-width:none;}
   #topbar .source-status{display:none;}
   #topbar .actions .btn-primary{padding:9px 10px;}
   #topbar .actions .btn-primary svg{display:none;}
@@ -443,6 +445,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
           <span class="period-arrow">→</span>
           <label for="periodEnd">Até</label><select class="select" id="periodEnd"></select>
         </div>
+        <select class="select channel-select" id="channelSelect" aria-label="Filtrar por canal"><option value="">Todos os canais</option></select>
         <button class="icon-btn" id="themeToggle" aria-label="Alternar tema"></button>
         <span class="source-status" id="sourceStatus">Planilha carregada</span>
       </div>
@@ -544,6 +547,7 @@ let state = {
   view:'dashboard',
   periodStart:'2026-01',
   periodEnd:'2026-12',
+  channel:'',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
   reservas: [],
@@ -658,10 +662,12 @@ function computeR(r){
 }
 function blocking(r){ return BLOCKING_STATUSES.includes(r.status); }
 function confirmedSt(r){ return CONFIRMED_STATUSES.includes(r.status); }
+function channelMatches(r){ return !state.channel || r.canal===state.channel; }
+function channelLabel(){ return state.channel || 'Todos os canais'; }
 
 /* Conflicts: reservations (blocking) that share at least one night with another blocking reservation */
 function findConflicts(){
-  const blockers = state.reservas.filter(blocking);
+  const blockers = state.reservas.filter(r=>blocking(r) && channelMatches(r));
   const map = {}; // nightKey -> [ids]
   blockers.forEach(r=>{ nightsOf(r).forEach(k=>{ (map[k]=map[k]||[]).push(r.id); }); });
   const conflictIds = new Set();
@@ -669,7 +675,7 @@ function findConflicts(){
   return conflictIds;
 }
 function conflictNightSet(excludeId){
-  const blockers = state.reservas.filter(r=>blocking(r) && r.id!==excludeId);
+  const blockers = state.reservas.filter(r=>blocking(r) && channelMatches(r) && r.id!==excludeId);
   const set = new Set();
   blockers.forEach(r=>nightsOf(r).forEach(k=>set.add(k)));
   return set;
@@ -678,12 +684,14 @@ function conflictNightSet(excludeId){
 /* ---------------- MONTH / YEAR STATS ---------------- */
 function computeMonthStats(year,month){
   const dias = daysInMonth(year,month);
-  let alugadasSet = new Set(), tentativeSet = new Set();
+  let alugadasSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
   let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0;
   state.reservas.forEach(r=>{
     if(!blocking(r)) return;
+    if(!channelMatches(r)) return;
     const n = nightsInMonth(r,year,month);
     if(n<=0) return;
+    reservasSet.add(r.id);
     const c = computeR(r);
     const revShare = c.nights>0? c.grossRevenue*(n/c.nights):0;
     const costShare = c.nights>0? c.directCosts*(n/c.nights):0;
@@ -700,7 +708,7 @@ function computeMonthStats(year,month){
   const ocupacao = dias>0? alugadas/dias:0;
   const lucroConf = receitaConf - custosConf - despesasGerais;
   const lucroProj = receitaProj - custosProj - despesasGerais;
-  return {dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,lucroConf,lucroProj,
+  return {dias,alugadas,diarias:alugadas,reservas:reservasSet.size,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,lucroConf,lucroProj,
     margemConf: receitaConf>0?lucroConf/receitaConf:0, tentativeNights:tentativeSet.size};
 }
 function monthKey(year,month){ return `${year}-${pad(month+1)}`; }
@@ -736,19 +744,19 @@ function computePeriodStats(){
   const ocupacao = dias>0? alugadas/dias:0;
   const adr = alugadas>0? receitaConf/alugadas:0;
   const revpar = dias>0? receitaConf/dias:0;
-  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && reservationInPeriod(r));
+  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r));
   const reservasConfPeriodo = reservasPeriodo.filter(confirmedSt);
   const losMedio = reservasPeriodo.length? reservasPeriodo.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasPeriodo.length:0;
   const ticketMedio = reservasConfPeriodo.length? receitaConf/reservasConfPeriodo.length:0;
   const saldoReceber = reservasPeriodo.reduce((s,r)=>s+computeR(r).balance,0);
   return {period,months,dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,
     lucroConf,lucroProj,margemConf:receitaConf>0?lucroConf/receitaConf:0,adr,revpar,losMedio,ticketMedio,saldoReceber,
-    numReservas:reservasPeriodo.length};
+    numReservas:reservasPeriodo.length,diarias:alugadas};
 }
 function channelBreakdown(){
   const map={};
   state.reservas.forEach(r=>{
-    if(!blocking(r)) return;
+    if(!blocking(r) || !channelMatches(r)) return;
     const n=nightsOf(r).filter(k=>dateInPeriod(parseISO(k))).length; if(n<=0) return;
     const c = computeR(r); const share = c.nights>0? c.grossRevenue*(n/c.nights):0;
     map[r.canal]=map[r.canal]||{receita:0,count:0}; map[r.canal].receita+=share; map[r.canal].count+=1;
@@ -824,10 +832,12 @@ function updateFootRing(){
 function viewDashboard(){
   const ys = computePeriodStats();
   const rangeLabel = periodLabel();
-  const upcoming = state.reservas.filter(r=>blocking(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
-    .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin)).slice(0,5);
+  const upcomingAll = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
+    .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
+  const upcoming = upcomingAll.slice(0,5);
+  const upcomingNights = upcomingAll.reduce((sum,r)=>sum+computeR(r).nights,0);
   const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
-  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
+  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return channelMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
   const chBreak = channelBreakdown();
   const channelEntries = Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
   const channelTotal = channelEntries.reduce((sum,[,data])=>sum+data.receita,0);
@@ -836,7 +846,7 @@ function viewDashboard(){
   <div class="hero">
     <div class="card hero-ring-card">
       <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação no período</span></div></div>
-      <div style="font-size:12px;color:var(--text-3)">${fmtNum(ys.alugadas)} diárias alugadas de ${fmtNum(ys.dias)} dias</div>
+      <div style="font-size:12px;color:var(--text-3)">${ys.numReservas} reserva(s) · ${fmtNum(ys.alugadas)} diárias de ${fmtNum(ys.dias)} dias</div>
     </div>
     <div class="hero-side">
       <div class="grid mini-grid">
@@ -859,13 +869,13 @@ function viewDashboard(){
   </div>
 
   <div class="card chart-card dashboard-financial-card">
-      <div class="card-head"><h3>Receita, custos e lucro por mês</h3><span class="hint">${rangeLabel} · valores confirmados</span></div>
+      <div class="card-head"><h3>Receita, custos e lucro por mês</h3><span class="hint">${rangeLabel} · ${channelLabel()} · valores confirmados</span></div>
       <div class="chart-box tall"><canvas id="chartMonthly"></canvas></div>
   </div>
 
   <div class="dashboard-summary-grid">
     <div class="card summary-card upcoming-card">
-      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">a partir de hoje</span></div>
+      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingNights} diária(s)</span></div>
       ${upcoming.length===0? `<div class="empty-state">${icon('calendar',30)}<b>Nenhuma reserva futura</b>Atualize a planilha quando houver uma nova reserva.</div>`:
         upcoming.map(r=>{ const c=computeR(r); const initials=(r.hospede||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
         return `<div class="list-row"><div class="avatar">${initials}</div>
@@ -885,7 +895,7 @@ function viewDashboard(){
           <div class="lr-val">${fmtMoney(c.balance)}</div></div>`; }).join('')}
     </div>
     <div class="card summary-card channel-card">
-      <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel}</span></div>
+      <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel} · ${channelLabel()}</span></div>
       ${channelEntries.length? `<div class="channel-list">${channelEntries.map(([name,data])=>{ const share=channelTotal>0?data.receita/channelTotal:0; return `
         <div class="channel-row"><div class="channel-row-head"><b>${name}</b><span>${fmtMoney(data.receita)}</span></div>
           <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · ${data.count} reserva(s)</span></div>`; }).join('')}</div>`:
@@ -934,7 +944,7 @@ function chartOpts(o={}){
    VIEW: AGENDA (CALENDAR)
    ================================================================ */
 function reservationOnDay(dateKeyStr){
-  return state.reservas.filter(r=> blocking(r) && nightsOf(r).includes(dateKeyStr) );
+  return state.reservas.filter(r=> blocking(r) && channelMatches(r) && nightsOf(r).includes(dateKeyStr) );
 }
 function viewAgenda(){
   const y=state.calYear, m=state.calMonth;
@@ -1026,6 +1036,7 @@ function filteredReservas(){
   const f = state.filters.reservas;
   return state.reservas.filter(r=>{
     if(!reservationInPeriod(r)) return false;
+    if(!channelMatches(r)) return false;
     if(f.status && r.status!==f.status) return false;
     if(f.canal && r.canal!==f.canal) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!(r.hospede.toLowerCase().includes(s)||r.id.toLowerCase().includes(s)||(r.periodo||'').toLowerCase().includes(s))) return false; }
@@ -1034,6 +1045,7 @@ function filteredReservas(){
 }
 function viewReservas(){
   const list = filteredReservas();
+  const totalNights = list.reduce((sum,r)=>sum+computeR(r).nights,0);
   const conflictSet = findConflicts();
   const html = `
   <div class="toolbar">
@@ -1042,7 +1054,7 @@ function viewReservas(){
       <select class="select" id="fStatus"><option value="">Todos os status</option>${STATUS_LIST.map(s=>`<option ${state.filters.reservas.status===s?'selected':''}>${s}</option>`).join('')}</select>
       <select class="select" id="fCanal"><option value="">Todos os canais</option>${CANAL_LIST.map(s=>`<option ${state.filters.reservas.canal===s?'selected':''}>${s}</option>`).join('')}</select>
     </div>
-    <span class="hint" style="color:var(--text-3);font-size:12.5px;">${list.length} reserva(s)</span>
+    <span class="hint" style="color:var(--text-3);font-size:12.5px;">${list.length} reserva(s) · ${totalNights} diária(s)</span>
   </div>
   <div class="table-wrap">
     ${list.length===0? `<div class="empty-state">${icon('list',34)}<b>Nenhuma reserva encontrada</b>Ajuste os filtros ou atualize a planilha.</div>` : `
@@ -1293,8 +1305,8 @@ function viewRelatorios(){
       <div class="card-head"><h3>Resumo por mês</h3><span class="hint">estilo painel original</span></div>
       <div class="table-wrap" style="border:none;">
         <table style="min-width:0;">
-          <thead><tr><th>Mês</th><th class="num">Alugadas</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
-          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
+          <thead><tr><th>Mês</th><th class="num">Reservas</th><th class="num">Diárias</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
+          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
         </table>
       </div>
     </div>
@@ -1404,6 +1416,11 @@ function syncPeriodSelects(){
   });
   updateFootRing();
 }
+function syncChannelSelect(){
+  const select=document.getElementById('channelSelect');
+  if(!select) return;
+  select.innerHTML='<option value="">Todos os canais</option>'+CANAL_LIST.map(c=>`<option value="${c}" ${c===state.channel?'selected':''}>${c}</option>`).join('');
+}
 function changePeriod(changed){
   const start=document.getElementById('periodStart').value, end=document.getElementById('periodEnd').value;
   if(start>end){
@@ -1416,12 +1433,14 @@ function changePeriod(changed){
 }
 document.getElementById('periodStart').addEventListener('change',()=>changePeriod('start'));
 document.getElementById('periodEnd').addEventListener('change',()=>changePeriod('end'));
+document.getElementById('channelSelect').addEventListener('change',e=>{ state.channel=e.target.value; render(); });
 
 /* ---------------- MAIN RENDER DISPATCH ---------------- */
 function render(){
   renderNav();
   syncSidebar();
   syncPeriodSelects();
+  syncChannelSelect();
   updateThemeIcon();
   const map = {dashboard:viewDashboard, agenda:viewAgenda, reservas:viewReservas, despesas:viewDespesas, relatorios:viewRelatorios, config:viewConfig};
   (map[state.view]||viewDashboard)();
