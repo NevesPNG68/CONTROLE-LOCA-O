@@ -113,6 +113,7 @@ input,select,textarea{font-family:inherit;}
 .period-filter:focus-within{border-color:var(--teal-dim);box-shadow:0 0 0 3px var(--teal-glow);}
 html[data-theme="dark"] .period-filter .select option{background:var(--bg-2);color:var(--text-1);}
 .channel-select{width:136px;}
+#topbar.agenda-view .period-filter{display:none !important;}
 #menuToggle{display:none;}
 
 .btn{
@@ -248,6 +249,10 @@ tbody tr:hover{background:var(--bg-1);}
 td.num, th.num{font-family:var(--font-mono); text-align:right;}
 tfoot th{padding:12px 14px; border-top:1px solid var(--border); color:var(--text-1); white-space:nowrap; font-weight:700;}
 tfoot th:first-child{text-align:left; font-family:var(--font-display);}
+.report-summary-table{table-layout:fixed;}
+.report-summary-table th,.report-summary-table td{padding-left:14px;padding-right:14px;}
+.report-summary-table tfoot td{padding:12px 14px;border-top:1px solid var(--border);font-family:var(--font-mono);font-weight:700;text-align:right;white-space:nowrap;}
+.report-summary-table tfoot td:first-child{font-family:var(--font-display);text-align:left;}
 .row-actions{display:flex; gap:6px;}
 .empty-state{padding:50px 20px; text-align:center; color:var(--text-3);}
 .empty-state svg{width:38px; height:38px; margin-bottom:10px; opacity:.6;}
@@ -936,12 +941,16 @@ function ensureChartSupport(){
   });
   return false;
 }
+function moneyAxisLabel(value){
+  const amount=Number(value)||0;
+  return Math.abs(amount)>=1000 ? `R$ ${(amount/1000).toLocaleString('pt-BR',{maximumFractionDigits:1})} mil` : `R$ ${amount.toLocaleString('pt-BR',{maximumFractionDigits:0})}`;
+}
 function chartOpts(o={}){
   return {
     responsive:true, maintainAspectRatio:false,
     scales:{
       x:{ stacked:!!o.stacked, grid:{display:false}, ticks:{color:cssv('--text-3'),font:{size:11}} },
-      y:{ stacked:!!o.stacked, grid:{color:cssv('--border-soft')}, ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>'R$'+(v/1000).toFixed(0)+'k'} }
+      y:{ stacked:!!o.stacked, beginAtZero:true, grid:{color:cssv('--border-soft')}, ticks:{color:cssv('--text-3'),font:{size:10},callback:o.yTickCallback||moneyAxisLabel} }
     },
     plugins:{ legend:{position:'bottom',labels:{color:cssv('--text-2'),boxWidth:10,font:{size:11}}},
       tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtMoney(c.raw)}} }
@@ -1308,16 +1317,16 @@ function viewRelatorios(){
   const html = `
   <div class="two-col-equal">
     <div class="card chart-card"><div class="card-head"><h3>Ocupação mensal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rOcc"></canvas></div></div>
-    <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">${rangeLabel} · confirmadas</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
-    <div class="card chart-card"><div class="card-head"><h3>Reservas por canal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rChannel"></canvas></div></div>
+    <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">Valor médio por diária · ${rangeLabel}</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
+    <div class="card chart-card"><div class="card-head"><h3>Quantidade de reservas por canal</h3><span class="hint">Cada barra representa o número de reservas</span></div><div class="chart-box"><canvas id="rChannel"></canvas></div></div>
     <div class="card">
       <div class="card-head"><h3>Resumo por mês</h3><span class="hint">estilo painel original</span></div>
       <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${ys.numReservas}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${ys.alugadas}</b></div></div>
       <div class="table-wrap" style="border:none;">
-        <table style="min-width:0;">
+        <table class="report-summary-table" style="min-width:0;">
           <thead><tr><th>Mês</th><th class="num">Reservas</th><th class="num">Diárias</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
           <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><th>Total do período</th><th class="num">${ys.numReservas}</th><th class="num">${ys.alugadas}</th><th class="num">${fmtPct(ys.ocupacao)}</th><th class="num">${fmtMoney(ys.receitaConf)}</th><th class="num" style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</th></tr></tfoot>
+          <tfoot><tr><td>Total do período</td><td>${ys.numReservas}</td><td>${ys.alugadas}</td><td>${fmtPct(ys.ocupacao)}</td><td>${fmtMoney(ys.receitaConf)}</td><td style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</td></tr></tfoot>
         </table>
       </div>
     </div>
@@ -1327,11 +1336,14 @@ function viewRelatorios(){
   const periodLabels = ys.period.map(item=>item.label);
   new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--teal'),backgroundColor:cssv('--teal-glow'),fill:true,tension:.35,pointRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:cssv('--text-3'),font:{size:11}}},y:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(1)+'%'}}}} });
-  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:periodLabels, datasets:[{label:'ADR',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--gold'),borderRadius:5,maxBarThickness:22}]},
-    options: chartOpts() });
+  const adrOptions=chartOpts();
+  adrOptions.scales.y.title={display:true,text:'R$ por diária',color:cssv('--text-3'),font:{size:11}};
+  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:periodLabels, datasets:[{label:'Valor médio da diária',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--gold'),borderRadius:5,maxBarThickness:22}]},
+    options: adrOptions });
   const chLabels = Object.keys(chBreak);
-  new Chart(document.getElementById('rChannel'),{ type:'bar', data:{ labels: chLabels.length?chLabels:['Sem dados'], datasets:[{label:'Reservas',data:chLabels.length?chLabels.map(k=>chBreak[k].count):[0],backgroundColor:cssv('--teal'),borderRadius:5,maxBarThickness:26}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3')}},y:{grid:{display:false},ticks:{color:cssv('--text-2'),font:{size:12}}}},plugins:{legend:{display:false}}} });
+  const channelCounts=chLabels.length?chLabels.map(k=>chBreak[k].count):[0];
+  new Chart(document.getElementById('rChannel'),{ type:'bar', data:{ labels: chLabels.length?chLabels:['Sem dados'], datasets:[{label:'Quantidade de reservas',data:channelCounts,backgroundColor:cssv('--teal'),borderRadius:5,maxBarThickness:26}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,scales:{x:{beginAtZero:true,max:Math.max(1,...channelCounts),grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),stepSize:1,precision:0,callback:v=>`${v} reserva${Number(v)===1?'':'s'}`},title:{display:true,text:'Número de reservas',color:cssv('--text-3'),font:{size:11}}},y:{grid:{display:false},ticks:{color:cssv('--text-2'),font:{size:12}}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} reserva${c.raw===1?'':'s'}`}}} } });
 }
 
 /* ================================================================
@@ -1450,6 +1462,7 @@ document.getElementById('channelSelect').addEventListener('change',e=>{ state.ch
 function render(){
   renderNav();
   syncSidebar();
+  document.getElementById('topbar').classList.toggle('agenda-view',state.view==='agenda');
   const periodFilter=document.querySelector('.period-filter');
   if(periodFilter) periodFilter.style.display=state.view==='agenda'?'none':'';
   syncPeriodSelects();
