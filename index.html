@@ -396,6 +396,24 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
   html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,rgba(14,122,109,.18),#FBFDFC 75%);border-color:#78BCAE;}
   .cal-guest{font-size:9.5px; -webkit-line-clamp:1;}
+  /* Mobile only: secondary card content needs enough visual weight in both themes. */
+  .card .card-head .hint,
+  .kpi .lbl,
+  .kpi .delta,
+  .ring-label span,
+  .summary-metric span,
+  .channel-share,
+  .sum-chip .l,
+  .report-channel-row span,
+  .list-row .lr-main span,
+  .attention-clear span,
+  .cal-legend,
+  .cal-dow,
+  .cal-cell .num,
+  .cal-tag,
+  .chart-fallback,
+  .empty-state{color:var(--text-2);font-weight:700;}
+  .hero-ring-card > div:last-child{color:var(--text-2) !important;font-weight:700;}
   .cal-tag{display:none;}
   .cal-month-label{min-width:0; font-size:16px;}
   #topbar .sub{display:none;}
