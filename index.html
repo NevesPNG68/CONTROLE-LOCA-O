@@ -803,7 +803,7 @@ document.getElementById('modal-overlay').addEventListener('click',(e)=>{ if(e.ta
 /* ---------------- SIDEBAR NAV ---------------- */
 const NAV = [
   {id:'dashboard', label:'Painel', icon:'dashboard', sub:'Visão geral financeira e de ocupação'},
-  {id:'agenda', label:'Agenda', icon:'calendar', sub:'Disponibilidade mês a mês, estilo agenda'},
+  {id:'agenda', label:'Agenda', icon:'calendar', sub:''},
   {id:'reservas', label:'Reservas', icon:'list', sub:'Todas as locações cadastradas'},
   {id:'despesas', label:'Despesas da casa', icon:'wallet', sub:'Custos gerais e vinculados a reservas'},
   {id:'relatorios', label:'Relatórios', icon:'chart', sub:'Tendências, canais e indicadores'},
@@ -1073,7 +1073,6 @@ function viewReservas(){
   const html = `
   <div class="toolbar">
     <div class="toolbar-left">
-      <div class="search-box search-box-plain"><input type="text" id="fSearch" placeholder="Buscar hóspede, ID ou motivo..." value="${state.filters.reservas.search}"></div>
       <select class="select" id="fStatus"><option value="">Todos os status</option>${STATUS_LIST.map(s=>`<option ${state.filters.reservas.status===s?'selected':''}>${s}</option>`).join('')}</select>
     </div>
     <span class="hint" style="color:var(--text-3);font-size:12.5px;">${list.length} reserva(s) · ${totalNights} diária(s)</span>
@@ -1106,7 +1105,6 @@ function viewReservas(){
     </table>`}
   </div>`;
   document.getElementById('view-root').innerHTML = html;
-  document.getElementById('fSearch').addEventListener('input',e=>{ state.filters.reservas.search=e.target.value; viewReservas(); });
   document.getElementById('fStatus').addEventListener('change',e=>{ state.filters.reservas.status=e.target.value; viewReservas(); });
 }
 
