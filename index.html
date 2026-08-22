@@ -420,10 +420,10 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   #topbar .title-wrap{min-width:0;}
   #topbar h1{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #topbar{align-items:flex-start;flex-wrap:wrap;}
-  #topbar .actions{gap:6px;width:100%;justify-content:flex-end;}
-  .period-filter{flex:1;display:grid;grid-template-columns:auto minmax(72px,1fr) auto auto minmax(72px,1fr);gap:4px;padding-left:8px;}
+  #topbar .actions{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr) auto;gap:6px;width:100%;}
+  .period-filter{min-width:0;display:grid;grid-template-columns:auto minmax(72px,1fr) auto auto minmax(72px,1fr);gap:4px;padding-left:8px;}
   .period-filter .select{min-width:0;width:100%;padding-left:4px;padding-right:20px;}
-  .channel-select{width:100%;max-width:none;}
+  .channel-select{width:100%;min-width:0;max-width:none;}
   #topbar .source-status{display:none;}
   #topbar .actions .btn-primary{padding:9px 10px;}
   #topbar .actions .btn-primary svg{display:none;}
@@ -928,8 +928,7 @@ function viewDashboard(){
 
   <div class="dashboard-summary-grid">
     <div class="card summary-card upcoming-card">
-      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingStats.commercialNights} diárias comerciais · ${upcomingStats.courtesyNights} de cortesia</span></div>
-      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${upcomingAll.length}</b></div><div class="summary-metric"><span>Diárias comerciais</span><b>${upcomingStats.commercialNights}</b></div><div class="summary-metric"><span>Diárias de cortesia</span><b>${upcomingStats.courtesyNights}</b></div></div>
+      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingStats.commercialNights} diárias comerciais · ${upcomingStats.courtesyNights} diárias de cortesia</span></div>
       ${upcoming.length===0? `<div class="empty-state">${icon('calendar',30)}<b>Nenhuma reserva futura</b>Atualize a planilha quando houver uma nova reserva.</div>`:
         upcoming.map(r=>{ const c=computeR(r); const initials=(r.hospede||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
         return `<div class="list-row"><div class="avatar">${initials}</div>
@@ -952,7 +951,7 @@ function viewDashboard(){
       <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel} · ${channelLabel()}</span></div>
       ${channelEntries.length? `<div class="channel-list">${channelEntries.map(([name,data])=>{ const share=channelTotal>0?data.receita/channelTotal:0; return `
         <div class="channel-row"><div class="channel-row-head"><b>${name}</b><span>${fmtMoney(data.receita)}</span></div>
-          <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · Reservas: ${data.count}</span></div>`; }).join('')}</div>`:
+          <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · Reservas: ${data.count} · Diárias: ${data.diarias}</span></div>`; }).join('')}</div>`:
         `<div class="empty-state" style="padding:12px 0;">${icon('chart',24)}<b>Sem receita no período</b></div>`}
     </div>
   </div>`;
