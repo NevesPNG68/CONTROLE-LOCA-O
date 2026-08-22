@@ -883,7 +883,12 @@ function viewDashboard(){
   const upcomingAll = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
     .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
   const upcoming = upcomingAll.slice(0,5);
-  const upcomingNights = upcomingAll.reduce((sum,r)=>sum+computeR(r).nights,0);
+  const upcomingStats = upcomingAll.reduce((totals,r)=>{
+    const nights = computeR(r).nights;
+    if(isCourtesy(r)) totals.courtesyNights += nights;
+    else totals.commercialNights += nights;
+    return totals;
+  },{commercialNights:0,courtesyNights:0});
   const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
   const overdue = state.reservas.filter(r=>{ const c=computeR(r); return channelMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
   const chBreak = channelBreakdown();
@@ -923,8 +928,8 @@ function viewDashboard(){
 
   <div class="dashboard-summary-grid">
     <div class="card summary-card upcoming-card">
-      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingNights} diária(s)</span></div>
-      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${upcomingAll.length}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${upcomingNights}</b></div></div>
+      <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingStats.commercialNights} diárias comerciais · ${upcomingStats.courtesyNights} de cortesia</span></div>
+      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${upcomingAll.length}</b></div><div class="summary-metric"><span>Diárias comerciais</span><b>${upcomingStats.commercialNights}</b></div><div class="summary-metric"><span>Diárias de cortesia</span><b>${upcomingStats.courtesyNights}</b></div></div>
       ${upcoming.length===0? `<div class="empty-state">${icon('calendar',30)}<b>Nenhuma reserva futura</b>Atualize a planilha quando houver uma nova reserva.</div>`:
         upcoming.map(r=>{ const c=computeR(r); const initials=(r.hospede||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
         return `<div class="list-row"><div class="avatar">${initials}</div>
@@ -947,7 +952,7 @@ function viewDashboard(){
       <div class="card-head"><h3>Receita por canal</h3><span class="hint">${rangeLabel} · ${channelLabel()}</span></div>
       ${channelEntries.length? `<div class="channel-list">${channelEntries.map(([name,data])=>{ const share=channelTotal>0?data.receita/channelTotal:0; return `
         <div class="channel-row"><div class="channel-row-head"><b>${name}</b><span>${fmtMoney(data.receita)}</span></div>
-          <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · ${data.count} reserva(s)</span></div>`; }).join('')}</div>`:
+          <div class="channel-meter"><i style="width:${Math.max(2,share*100)}%"></i></div><span class="channel-share">${fmtPct(share)} da receita · Reservas: ${data.count}</span></div>`; }).join('')}</div>`:
         `<div class="empty-state" style="padding:12px 0;">${icon('chart',24)}<b>Sem receita no período</b></div>`}
     </div>
   </div>`;
