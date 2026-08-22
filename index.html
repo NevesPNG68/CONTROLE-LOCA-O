@@ -1327,7 +1327,7 @@ function viewRelatorios(){
       ${reportChannels.length? `<div class="report-channel-summary">${reportChannels.map(([channel,data])=>`<div class="report-channel-row"><div><b>${channel}</b><span>${data.count} reserva(s) · ${data.diarias} diária(s)</span></div><div class="value">${fmtMoney(data.receita)}<span>${ys.receitaConf>0?fmtPct(data.receita/ys.receitaConf):'0,0%'} da receita</span></div></div>`).join('')}</div>` : `<div class="empty-state" style="padding:28px 0;">${icon('chart',24)}<b>Sem reservas no período</b></div>`}
     </div>
     <div class="card">
-      <div class="card-head"><h3>Resumo por mês</h3><span class="hint">estilo painel original</span></div>
+      <div class="card-head"><h3>Resumo por mês</h3></div>
       <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${ys.numReservas}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${ys.alugadas}</b></div></div>
       <div class="table-wrap" style="border:none;">
         <table class="report-summary-table" style="min-width:0;">
