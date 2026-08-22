@@ -572,6 +572,7 @@ function daysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
 function isLeap(y){ return (y%4===0 && y%100!==0)||y%400===0; }
 function daysInYear(y){ return isLeap(y)?366:365; }
 function todayKey(){ return toKey(new Date()); }
+function setAgendaToCurrentMonth(){ const now=new Date(); state.calMonth=now.getMonth(); state.calYear=now.getFullYear(); }
 function fmtMoney(v){ v = v||0; return 'R$ ' + v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
 function fmtPct(v){ return ((v||0)*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1}) + '%'; }
 function fmtNum(v){ return (v||0).toLocaleString('pt-BR'); }
@@ -801,7 +802,7 @@ function renderNav(){
       ${icon(n.icon,18)}<span>${n.label}</span>
       ${n.id==='agenda' && conflicts>0? `<span class="nav-badge">${conflicts}</span>`:''}
     </button>`).join('');
-  document.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.nav; state.sidebarOpen=false; syncSidebar(); render(); }));
+  document.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click',()=>{ state.view=b.dataset.nav; if(state.view==='agenda') setAgendaToCurrentMonth(); state.sidebarOpen=false; syncSidebar(); render(); }));
   const active = NAV.find(n=>n.id===state.view);
   document.getElementById('pageTitle').textContent = active.label;
   document.getElementById('pageSub').textContent = active.sub;
@@ -1447,6 +1448,8 @@ document.getElementById('channelSelect').addEventListener('change',e=>{ state.ch
 function render(){
   renderNav();
   syncSidebar();
+  const periodFilter=document.querySelector('.period-filter');
+  if(periodFilter) periodFilter.style.display=state.view==='agenda'?'none':'';
   syncPeriodSelects();
   syncChannelSelect();
   updateThemeIcon();
@@ -1472,13 +1475,13 @@ async function boot(){
     return;
   }
 
-  // default calendar and filter to the full year of the latest check-in
+  // Agenda sempre abre no mês atual; o filtro de período continua independente nos demais menus.
   if(state.reservas.length){
     const latest = [...state.reservas].sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin))[0];
+    setAgendaToCurrentMonth();
     const d0 = parseISO(latest.checkin);
-    state.calMonth = d0.getMonth(); state.calYear = d0.getFullYear();
     state.periodStart = `${d0.getFullYear()}-01`; state.periodEnd = `${d0.getFullYear()}-12`;
-  }
+  } else setAgendaToCurrentMonth();
   render();
   toast(`${state.reservas.length} reserva(s) e ${state.despesas.length} despesa(s) carregadas.`);
 }
