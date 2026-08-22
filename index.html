@@ -540,7 +540,7 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 const DOW = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM'];
 const STATUS_LIST = ['Consulta','Pré-reserva','Confirmada','Concluída','Cancelada'];
-const CANAL_LIST = ['Direto','Airbnb','Booking','Imobiliária','Indicação','Outro'];
+const CANAL_LIST = ['Direto','Airbnb','Booking','Imobiliária','Indicação','Cortesia','Outro'];
 const CATEGORIA_DESPESA = ['Condomínio','Água','Luz','IPTU / Impostos','Manutenção','Limpeza','Seguro','Internet / TV','Reforma / Investimento','Outro'];
 const BLOCKING_STATUSES = ['Confirmada','Concluída','Pré-reserva'];
 const CONFIRMED_STATUSES = ['Confirmada','Concluída'];
@@ -704,10 +704,11 @@ function computeR(r){
   const costPerNight = nights>0? directCosts/nights:0;
   const profitPerNight = nights>0? netProfit/nights:0;
   const balance = grossRevenue - Number(r.recebido||0);
-  return {nights,grossRevenue,manualCosts,linkedExpenses:linked,directCosts,netProfit,margin,costPerNight,profitPerNight,balance};
+  return {nights,grossRevenue,commercialRevenue:r.canal==='Cortesia'?0:grossRevenue,manualCosts,linkedExpenses:linked,directCosts,netProfit,margin,costPerNight,profitPerNight,balance:r.canal==='Cortesia'?0:balance};
 }
 function blocking(r){ return BLOCKING_STATUSES.includes(r.status); }
 function confirmedSt(r){ return CONFIRMED_STATUSES.includes(r.status); }
+function isCourtesy(r){ return r.canal==='Cortesia'; }
 function channelMatches(r){ return !state.channel || r.canal===state.channel; }
 function channelLabel(){ return state.channel || 'Todos os canais'; }
 
@@ -730,8 +731,8 @@ function conflictNightSet(excludeId){
 /* ---------------- MONTH / YEAR STATS ---------------- */
 function computeMonthStats(year,month){
   const dias = daysInMonth(year,month);
-  let alugadasSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
-  let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0;
+  let alugadasSet = new Set(), comerciaisSet = new Set(), cortesiaSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
+  let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0, custosCortesiaConf=0;
   state.reservas.forEach(r=>{
     if(!blocking(r)) return;
     if(!channelMatches(r)) return;
@@ -741,20 +742,20 @@ function computeMonthStats(year,month){
     const c = computeR(r);
     const revShare = c.nights>0? c.grossRevenue*(n/c.nights):0;
     const costShare = c.nights>0? c.directCosts*(n/c.nights):0;
-    nightsOf(r).forEach(k=>{ const d=parseISO(k); if(d.getFullYear()===year&&d.getMonth()===month){ alugadasSet.add(k); if(!confirmedSt(r)) tentativeSet.add(k); } });
-    if(confirmedSt(r)){ receitaConf+=revShare; custosConf+=costShare; }
-    receitaProj+=revShare; custosProj+=costShare;
+    nightsOf(r).forEach(k=>{ const d=parseISO(k); if(d.getFullYear()===year&&d.getMonth()===month){ alugadasSet.add(k); (isCourtesy(r)?cortesiaSet:comerciaisSet).add(k); if(!confirmedSt(r)) tentativeSet.add(k); } });
+    if(isCourtesy(r)){ if(confirmedSt(r)) custosCortesiaConf+=costShare; }
+    else { if(confirmedSt(r)){ receitaConf+=revShare; custosConf+=costShare; } receitaProj+=revShare; custosProj+=costShare; }
   });
   const despesasGerais = state.despesas.filter(e=>{
     if(e.reservaId) return false; // linked ones already counted inside directCosts
     const d=parseISO(e.data); return d && d.getFullYear()===year && d.getMonth()===month;
   }).reduce((s,e)=>s+Number(e.valor||0),0);
-  const alugadas = alugadasSet.size;
-  const disponiveis = dias - alugadas;
+  const ocupadas = alugadasSet.size, alugadas = comerciaisSet.size, cortesia = cortesiaSet.size;
+  const disponiveis = dias - ocupadas;
   const ocupacao = dias>0? alugadas/dias:0;
   const lucroConf = receitaConf - custosConf - despesasGerais;
   const lucroProj = receitaProj - custosProj - despesasGerais;
-  return {dias,alugadas,diarias:alugadas,reservas:reservasSet.size,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,lucroConf,lucroProj,
+  return {dias,alugadas,cortesia,ocupadas,diarias:alugadas,reservas:reservasSet.size,disponiveis,ocupacao,ocupacaoFisica:dias>0?ocupadas/dias:0,receitaConf,receitaProj,custosConf,custosProj,custosCortesiaConf,despesasGerais,lucroConf,lucroProj,
     margemConf: receitaConf>0?lucroConf/receitaConf:0, tentativeNights:tentativeSet.size};
 }
 function monthKey(year,month){ return `${year}-${pad(month+1)}`; }
@@ -780,31 +781,32 @@ function computePeriodStats(){
   const months = period.map(item=>item.stats);
   const dias = months.reduce((total,item)=>total+item.dias,0);
   const sum = (k)=>months.reduce((s,m)=>s+m[k],0);
-  const alugadas = sum('alugadas');
+  const alugadas = sum('alugadas'), cortesia=sum('cortesia'), ocupadas=sum('ocupadas');
   const receitaConf = sum('receitaConf'), receitaProj=sum('receitaProj');
   const custosConf = sum('custosConf'), custosProj=sum('custosProj');
   const despesasGerais = sum('despesasGerais');
   const lucroConf = receitaConf-custosConf-despesasGerais;
   const lucroProj = receitaProj-custosProj-despesasGerais;
-  const disponiveis = dias-alugadas;
+  const disponiveis = dias-ocupadas;
   const ocupacao = dias>0? alugadas/dias:0;
   const adr = alugadas>0? receitaConf/alugadas:0;
   const revpar = dias>0? receitaConf/dias:0;
   const reservasPeriodo = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r));
-  const reservasConfPeriodo = reservasPeriodo.filter(confirmedSt);
-  const losMedio = reservasPeriodo.length? reservasPeriodo.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasPeriodo.length:0;
+  const reservasComerciais = reservasPeriodo.filter(r=>!isCourtesy(r));
+  const reservasConfPeriodo = reservasComerciais.filter(confirmedSt);
+  const losMedio = reservasComerciais.length? reservasComerciais.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasComerciais.length:0;
   const ticketMedio = reservasConfPeriodo.length? receitaConf/reservasConfPeriodo.length:0;
   const saldoReceber = reservasPeriodo.reduce((s,r)=>s+computeR(r).balance,0);
-  return {period,months,dias,alugadas,disponiveis,ocupacao,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,
+  return {period,months,dias,alugadas,cortesia,ocupadas,disponiveis,ocupacao,ocupacaoFisica:dias>0?ocupadas/dias:0,receitaConf,receitaProj,custosConf,custosProj,despesasGerais,
     lucroConf,lucroProj,margemConf:receitaConf>0?lucroConf/receitaConf:0,adr,revpar,losMedio,ticketMedio,saldoReceber,
-    numReservas:reservasPeriodo.length,diarias:alugadas};
+    numReservas:reservasPeriodo.length,numReservasComerciais:reservasComerciais.length,diarias:alugadas};
 }
 function channelBreakdown(){
   const map={};
   state.reservas.forEach(r=>{
     if(!blocking(r) || !channelMatches(r)) return;
     const n=nightsOf(r).filter(k=>dateInPeriod(parseISO(k))).length; if(n<=0) return;
-    const c = computeR(r); const share = c.nights>0? c.grossRevenue*(n/c.nights):0;
+    const c = computeR(r); const share = c.nights>0? c.commercialRevenue*(n/c.nights):0;
     map[r.canal]=map[r.canal]||{receita:0,count:0,diarias:0}; map[r.canal].receita+=share; map[r.canal].count+=1; map[r.canal].diarias+=n;
   });
   return map;
@@ -891,19 +893,19 @@ function viewDashboard(){
   const html = `
   <div class="hero">
     <div class="card hero-ring-card">
-      <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação no período</span></div></div>
-      <div style="font-size:12px;color:var(--text-3)">${ys.numReservas} reserva(s) · ${fmtNum(ys.alugadas)} diárias de ${fmtNum(ys.dias)} dias</div>
+      <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação comercial</span></div></div>
+      <div style="font-size:12px;color:var(--text-3)">${fmtNum(ys.alugadas)} diárias comerciais · ${fmtNum(ys.cortesia)} cortesia · ${fmtNum(ys.ocupadas)} dias ocupados</div>
     </div>
     <div class="hero-side">
       <div class="grid mini-grid">
         <div class="card kpi kpi-accent-teal"><span class="lbl">Receita confirmada</span><span class="val">${fmtMoney(ys.receitaConf)}</span>
           ${ys.receitaProj>ys.receitaConf? `<span class="delta">+ ${fmtMoney(ys.receitaProj-ys.receitaConf)} em pré-reservas</span>`:'<span class="delta">Sem pré-reservas em aberto</span>'}</div>
-        <div class="card kpi kpi-accent-gold"><span class="lbl">Lucro final</span><span class="val">${fmtMoney(ys.lucroConf)}</span>
-          <span class="delta ${ys.margemConf>=0?'up':'down'}">Margem ${fmtPct(ys.margemConf)}</span></div>
+        <div class="card kpi kpi-accent-gold"><span class="lbl">Lucro comercial</span><span class="val">${fmtMoney(ys.lucroConf)}</span>
+          <span class="delta ${ys.margemConf>=0?'up':'down'}">Margem ${fmtPct(ys.margemConf)} · Cortesia ${fmtMoney(ys.months.reduce((s,m)=>s+m.custosCortesiaConf,0))}</span></div>
         <div class="card kpi"><span class="lbl">Diária média (ADR)</span><span class="val">${fmtMoney(ys.adr)}</span>
           <span class="delta">RevPAR ${fmtMoney(ys.revpar)}</span></div>
         <div class="card kpi ${ys.saldoReceber>0?'kpi-accent-coral':''}"><span class="lbl">Saldo a receber</span><span class="val">${fmtMoney(ys.saldoReceber)}</span>
-          <span class="delta">${ys.numReservas} reserva(s) no período</span></div>
+          <span class="delta">${ys.numReservasComerciais} reserva(s) comercial(is) no período</span></div>
       </div>
       <div class="grid mini-grid">
         <div class="card kpi"><span class="lbl">LOS médio</span><span class="val">${ys.losMedio.toLocaleString('pt-BR',{maximumFractionDigits:1})}</span><span class="delta">noites por reserva</span></div>
@@ -959,7 +961,8 @@ function viewDashboard(){
     type:'bar',
     data:{ labels:ys.period.map(item=>item.label), datasets:[
       {label:'Receita', data:months.map(m=>m.receitaConf), backgroundColor:cssv('--teal'), borderRadius:5, maxBarThickness:22},
-      {label:'Custos + Despesas', data:months.map(m=>m.custosConf+m.despesasGerais), backgroundColor:cssv('--coral'), borderRadius:5, maxBarThickness:22},
+      {label:'Custos comerciais + despesas', data:months.map(m=>m.custosConf+m.despesasGerais), backgroundColor:cssv('--coral'), borderRadius:5, maxBarThickness:22},
+      {label:'Custos de cortesia', data:months.map(m=>m.custosCortesiaConf), backgroundColor:cssv('--gold'), borderRadius:5, maxBarThickness:22},
       {label:'Lucro', data:months.map(m=>m.lucroConf), backgroundColor:cssv('--gold'), borderRadius:5, maxBarThickness:22},
     ]},
     options: chartOpts({stacked:false})
@@ -1053,8 +1056,10 @@ function viewAgenda(){
       <div class="sum-chip"><div class="l">Custos diretos</div><div class="v">${fmtMoney(ms.custosConf)}</div></div>
       <div class="sum-chip"><div class="l">Despesas gerais</div><div class="v">${fmtMoney(ms.despesasGerais)}</div></div>
       <div class="sum-chip"><div class="l">Lucro final</div><div class="v">${fmtMoney(ms.lucroConf)}</div></div>
-      <div class="sum-chip"><div class="l">Diárias alugadas</div><div class="v">${ms.alugadas}</div></div>
-      <div class="sum-chip"><div class="l">Ocupação</div><div class="v">${fmtPct(ms.ocupacao)}</div></div>
+      <div class="sum-chip"><div class="l">Diárias comerciais</div><div class="v">${ms.alugadas}</div></div>
+      <div class="sum-chip"><div class="l">Diárias cortesia</div><div class="v">${ms.cortesia}</div></div>
+      <div class="sum-chip"><div class="l">Dias ocupados</div><div class="v">${ms.ocupadas}</div></div>
+      <div class="sum-chip"><div class="l">Ocupação comercial</div><div class="v">${fmtPct(ms.ocupacao)}</div></div>
     </div>
   </div>`;
 
