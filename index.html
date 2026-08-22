@@ -389,10 +389,12 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .report-summary-table{min-width:640px !important;table-layout:auto;}
   .report-summary-table th,.report-summary-table td{padding-left:10px;padding-right:10px;}
   .report-summary-table th:first-child,.report-summary-table td:first-child{min-width:76px;}
-  .card-head .hint,.kpi .lbl,.kpi .delta,.summary-metric span,.channel-share,.sum-chip .l,.report-channel-row span{font-weight:700;}
-  .cal-dow,.cal-legend{color:var(--text-2);font-weight:700;}
-  .cal-cell .num{color:var(--text-1);font-weight:700;}
-  .cal-cell .cal-guest{color:var(--text-1);font-weight:700;}
+  html[data-theme="light"] .card-head .hint,html[data-theme="light"] .kpi .lbl,html[data-theme="light"] .kpi .delta,html[data-theme="light"] .summary-metric span,html[data-theme="light"] .channel-share,html[data-theme="light"] .sum-chip .l,html[data-theme="light"] .report-channel-row span,html[data-theme="light"] .list-row .lr-main span{color:#36564F;font-weight:700;}
+  html[data-theme="light"] .cal-dow,html[data-theme="light"] .cal-legend{color:#29463F;font-weight:700;}
+  html[data-theme="light"] .cal-cell{background:#FBFDFC;border-color:#B7C9C3;}
+  html[data-theme="light"] .cal-cell .num{color:#17332C;font-weight:700;}
+  html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
+  html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,rgba(14,122,109,.18),#FBFDFC 75%);border-color:#78BCAE;}
   .cal-guest{font-size:9.5px; -webkit-line-clamp:1;}
   .cal-tag{display:none;}
   .cal-month-label{min-width:0; font-size:16px;}
