@@ -263,6 +263,7 @@ tfoot th:first-child{text-align:left; font-family:var(--font-display);}
 .search-box{position:relative;}
 .search-box svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--text-3);}
 .search-box input{padding-left:32px; min-width:220px;}
+.search-box.search-box-plain input{padding-left:11px;}
 
 /* ============ MODAL ============ */
 #modal-overlay{
@@ -1055,7 +1056,6 @@ function filteredReservas(){
     if(!reservationInPeriod(r)) return false;
     if(!channelMatches(r)) return false;
     if(f.status && r.status!==f.status) return false;
-    if(f.canal && r.canal!==f.canal) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!(r.hospede.toLowerCase().includes(s)||r.id.toLowerCase().includes(s)||(r.periodo||'').toLowerCase().includes(s))) return false; }
     return true;
   }).sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin));
@@ -1067,9 +1067,8 @@ function viewReservas(){
   const html = `
   <div class="toolbar">
     <div class="toolbar-left">
-      <div class="search-box">${icon('search',14)}<input type="text" id="fSearch" placeholder="Buscar hóspede, ID ou motivo..." value="${state.filters.reservas.search}"></div>
+      <div class="search-box search-box-plain"><input type="text" id="fSearch" placeholder="Buscar hóspede, ID ou motivo..." value="${state.filters.reservas.search}"></div>
       <select class="select" id="fStatus"><option value="">Todos os status</option>${STATUS_LIST.map(s=>`<option ${state.filters.reservas.status===s?'selected':''}>${s}</option>`).join('')}</select>
-      <select class="select" id="fCanal"><option value="">Todos os canais</option>${CANAL_LIST.map(s=>`<option ${state.filters.reservas.canal===s?'selected':''}>${s}</option>`).join('')}</select>
     </div>
     <span class="hint" style="color:var(--text-3);font-size:12.5px;">${list.length} reserva(s) · ${totalNights} diária(s)</span>
   </div>
@@ -1103,7 +1102,6 @@ function viewReservas(){
   document.getElementById('view-root').innerHTML = html;
   document.getElementById('fSearch').addEventListener('input',e=>{ state.filters.reservas.search=e.target.value; viewReservas(); });
   document.getElementById('fStatus').addEventListener('change',e=>{ state.filters.reservas.status=e.target.value; viewReservas(); });
-  document.getElementById('fCanal').addEventListener('change',e=>{ state.filters.reservas.canal=e.target.value; viewReservas(); });
 }
 
 function nextReservaId(){
