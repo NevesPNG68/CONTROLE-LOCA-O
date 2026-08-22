@@ -315,6 +315,10 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .summary-card .card-head{margin-bottom:12px;}
 .summary-card .list-row{padding:8px 0;}
 .summary-card .attention-clear{flex:1;}
+.summary-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:0 0 10px;}
+.summary-metric{display:flex;align-items:baseline;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--border-soft);border-radius:var(--radius-sm);background:var(--bg-1);}
+.summary-metric span{font-size:10px;text-transform:uppercase;letter-spacing:.45px;color:var(--text-3);}
+.summary-metric b{font-family:var(--font-mono);font-size:14px;color:var(--text-1);}
 .channel-list{display:grid;gap:12px;}
 .channel-row-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:12px;}
 .channel-row-head b{font-size:13px;}
@@ -876,6 +880,7 @@ function viewDashboard(){
   <div class="dashboard-summary-grid">
     <div class="card summary-card upcoming-card">
       <div class="card-head"><h3>Próximas reservas</h3><span class="hint">${upcomingAll.length} reserva(s) · ${upcomingNights} diária(s)</span></div>
+      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${upcomingAll.length}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${upcomingNights}</b></div></div>
       ${upcoming.length===0? `<div class="empty-state">${icon('calendar',30)}<b>Nenhuma reserva futura</b>Atualize a planilha quando houver uma nova reserva.</div>`:
         upcoming.map(r=>{ const c=computeR(r); const initials=(r.hospede||'?').split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
         return `<div class="list-row"><div class="avatar">${initials}</div>
@@ -1056,6 +1061,7 @@ function viewReservas(){
     </div>
     <span class="hint" style="color:var(--text-3);font-size:12.5px;">${list.length} reserva(s) · ${totalNights} diária(s)</span>
   </div>
+  <div class="summary-metrics" style="max-width:420px;margin:0 0 14px;"><div class="summary-metric"><span>Total de reservas</span><b>${list.length}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${totalNights}</b></div></div>
   <div class="table-wrap">
     ${list.length===0? `<div class="empty-state">${icon('list',34)}<b>Nenhuma reserva encontrada</b>Ajuste os filtros ou atualize a planilha.</div>` : `
     <table>
@@ -1307,6 +1313,7 @@ function viewRelatorios(){
         <table style="min-width:0;">
           <thead><tr><th>Mês</th><th class="num">Reservas</th><th class="num">Diárias</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
           <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><th>Total do período</th><th class="num">${ys.numReservas}</th><th class="num">${ys.alugadas}</th><th class="num">${fmtPct(ys.ocupacao)}</th><th class="num">${fmtMoney(ys.receitaConf)}</th><th class="num" style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</th></tr></tfoot>
         </table>
       </div>
     </div>
