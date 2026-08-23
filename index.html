@@ -260,6 +260,10 @@ tfoot th:first-child{text-align:left; font-family:var(--font-display);}
 
 .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px; justify-content:space-between;}
 .toolbar-left{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+.dashboard-type-filter{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-2);}
+.dashboard-type-filter button{border:0;border-radius:6px;background:transparent;color:var(--text-2);padding:6px 10px;font-size:12px;font-weight:700;}
+.dashboard-type-filter button:hover{color:var(--text-1);background:var(--bg-3);}
+.dashboard-type-filter button.is-active{background:var(--teal-glow);color:var(--teal);}
 .search-box{position:relative;}
 .search-box svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--text-3);}
 .search-box input{padding-left:32px; min-width:220px;}
@@ -597,6 +601,7 @@ let state = {
   periodStart:'2026-01',
   periodEnd:'2026-12',
   channel:'',
+  dashboardType:'all',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
   reservas: [],
@@ -714,6 +719,8 @@ function blocking(r){ return BLOCKING_STATUSES.includes(r.status); }
 function confirmedSt(r){ return CONFIRMED_STATUSES.includes(r.status); }
 function isCourtesy(r){ return r.canal==='Cortesia'; }
 function channelMatches(r){ return !state.channel || r.canal===state.channel; }
+function dashboardTypeMatches(r){ return state.dashboardType==='all' || (state.dashboardType==='courtesy'?isCourtesy(r):!isCourtesy(r)); }
+function dashboardMatches(r){ return channelMatches(r) && dashboardTypeMatches(r); }
 function channelLabel(){ return state.channel || 'Todos os canais'; }
 
 /* Conflicts: reservations (blocking) that share at least one night with another blocking reservation */
@@ -733,13 +740,13 @@ function conflictNightSet(excludeId){
 }
 
 /* ---------------- MONTH / YEAR STATS ---------------- */
-function computeMonthStats(year,month){
+function computeMonthStats(year,month,matches=channelMatches){
   const dias = daysInMonth(year,month);
   let alugadasSet = new Set(), comerciaisSet = new Set(), cortesiaSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
   let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0, custosCortesiaConf=0;
   state.reservas.forEach(r=>{
     if(!blocking(r)) return;
-    if(!channelMatches(r)) return;
+    if(!matches(r)) return;
     const n = nightsInMonth(r,year,month);
     if(n<=0) return;
     reservasSet.add(r.id);
@@ -764,12 +771,12 @@ function computeMonthStats(year,month){
 }
 function monthKey(year,month){ return `${year}-${pad(month+1)}`; }
 function parseMonthKey(key){ const [year,month]=key.split('-').map(Number); return {year,month:month-1}; }
-function periodMonths(startKey=state.periodStart,endKey=state.periodEnd){
+function periodMonths(startKey=state.periodStart,endKey=state.periodEnd,matches=channelMatches){
   const start=parseMonthKey(startKey), end=parseMonthKey(endKey), months=[];
   let cursor=new Date(start.year,start.month,1), last=new Date(end.year,end.month,1);
   while(cursor<=last){
     const year=cursor.getFullYear(), month=cursor.getMonth();
-    months.push({year,month,key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`,stats:computeMonthStats(year,month)});
+    months.push({year,month,key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`,stats:computeMonthStats(year,month,matches)});
     cursor=new Date(year,month+1,1);
   }
   return months;
@@ -780,8 +787,8 @@ function dateInPeriod(date){
   return key>=state.periodStart && key<=state.periodEnd;
 }
 function reservationInPeriod(r){ return nightsOf(r).some(k=>dateInPeriod(parseISO(k))); }
-function computePeriodStats(){
-  const period = periodMonths();
+function computePeriodStats(matches=channelMatches){
+  const period = periodMonths(state.periodStart,state.periodEnd,matches);
   const months = period.map(item=>item.stats);
   const dias = months.reduce((total,item)=>total+item.dias,0);
   const sum = (k)=>months.reduce((s,m)=>s+m[k],0);
@@ -795,7 +802,7 @@ function computePeriodStats(){
   const ocupacao = dias>0? alugadas/dias:0;
   const adr = alugadas>0? receitaConf/alugadas:0;
   const revpar = dias>0? receitaConf/dias:0;
-  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r));
+  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && matches(r) && reservationInPeriod(r));
   const reservasComerciais = reservasPeriodo.filter(r=>!isCourtesy(r));
   const reservasConfPeriodo = reservasComerciais.filter(confirmedSt);
   const losMedio = reservasComerciais.length? reservasComerciais.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasComerciais.length:0;
@@ -805,10 +812,10 @@ function computePeriodStats(){
     lucroConf,lucroProj,margemConf:receitaConf>0?lucroConf/receitaConf:0,adr,revpar,losMedio,ticketMedio,saldoReceber,
     numReservas:reservasPeriodo.length,numReservasComerciais:reservasComerciais.length,diarias:alugadas};
 }
-function channelBreakdown(){
+function channelBreakdown(matches=channelMatches){
   const map={};
   state.reservas.forEach(r=>{
-    if(!blocking(r) || !channelMatches(r)) return;
+    if(!blocking(r) || !matches(r)) return;
     const n=nightsOf(r).filter(k=>dateInPeriod(parseISO(k))).length; if(n<=0) return;
     const c = computeR(r); const share = c.nights>0? c.commercialRevenue*(n/c.nights):0;
     map[r.canal]=map[r.canal]||{receita:0,count:0,diarias:0}; map[r.canal].receita+=share; map[r.canal].count+=1; map[r.canal].diarias+=n;
@@ -882,9 +889,9 @@ function updateFootRing(){
    VIEW: DASHBOARD
    ================================================================ */
 function viewDashboard(){
-  const ys = computePeriodStats();
+  const ys = computePeriodStats(dashboardMatches);
   const rangeLabel = periodLabel();
-  const upcomingAll = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
+  const upcomingAll = state.reservas.filter(r=>blocking(r) && dashboardMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
     .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
   const upcoming = upcomingAll.slice(0,5);
   const upcomingStats = upcomingAll.reduce((totals,r)=>{
@@ -894,12 +901,13 @@ function viewDashboard(){
     return totals;
   },{commercialNights:0,courtesyNights:0});
   const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
-  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return channelMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
-  const chBreak = channelBreakdown();
+  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return dashboardMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
+  const chBreak = channelBreakdown(dashboardMatches);
   const channelEntries = Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
   const channelTotal = channelEntries.reduce((sum,[,data])=>sum+data.receita,0);
 
   const html = `
+  <div class="toolbar"><div class="toolbar-left"><span class="hint">Tipo de reserva</span><div class="dashboard-type-filter" role="group" aria-label="Filtrar painel por tipo de reserva">${[['all','Todos'],['commercial','Comerciais'],['courtesy','Cortesias']].map(([value,label])=>`<button type="button" class="${state.dashboardType===value?'is-active':''}" data-dashboard-type="${value}" aria-pressed="${state.dashboardType===value}">${label}</button>`).join('')}</div></div></div>
   <div class="hero">
     <div class="card hero-ring-card">
       <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação comercial</span></div></div>
@@ -961,6 +969,7 @@ function viewDashboard(){
   </div>`;
 
   document.getElementById('view-root').innerHTML = html;
+  document.querySelectorAll('[data-dashboard-type]').forEach(button=>button.addEventListener('click',()=>{ state.dashboardType=button.dataset.dashboardType; viewDashboard(); }));
 
   if(!ensureChartSupport()) return;
 
