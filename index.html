@@ -426,10 +426,8 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .period-filter .select{min-width:0;width:100%;padding-left:4px;padding-right:20px;}
   .channel-select{grid-column:1 / -1;grid-row:2;width:100%;min-width:0;max-width:none;}
   #themeToggle{grid-column:2;grid-row:1;}
-  .reservas-table{min-width:0;table-layout:fixed;}
-  .reservas-table th:nth-child(n+5),.reservas-table td:nth-child(n+5){display:none;}
-  .reservas-table th:nth-child(1),.reservas-table td:nth-child(1){width:94px;}
-  .reservas-table th:nth-child(3),.reservas-table td:nth-child(3),.reservas-table th:nth-child(4),.reservas-table td:nth-child(4){width:96px;}
+  /* Mantém a largura natural da tabela: o card desliza horizontalmente sem comprimir o hóspede. */
+  .reservas-table{min-width:760px;table-layout:auto;}
   #topbar .source-status{display:none;}
   #topbar .actions .btn-primary{padding:9px 10px;}
   #topbar .actions .btn-primary svg{display:none;}
