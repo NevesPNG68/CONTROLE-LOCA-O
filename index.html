@@ -1113,7 +1113,7 @@ function filteredReservas(){
     if(f.status && r.status!==f.status) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!(r.hospede.toLowerCase().includes(s)||r.id.toLowerCase().includes(s)||(r.periodo||'').toLowerCase().includes(s))) return false; }
     return true;
-  }).sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin));
+  }).sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
 }
 function viewReservas(){
   const list = filteredReservas();
