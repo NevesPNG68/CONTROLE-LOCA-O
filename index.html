@@ -340,8 +340,18 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .channel-meter i{display:block;height:100%;border-radius:inherit;background:var(--teal);}
 .channel-share{display:block;margin-top:5px;color:var(--text-3);font-size:11px;}
 .report-channel-card{align-self:start;}
+.report-left-stack{display:grid;align-content:start;gap:16px;}
 .report-channel-summary{display:grid;gap:10px;}
 .report-channel-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border:1px solid var(--border-soft);border-radius:var(--radius-sm);background:var(--bg-1);}
+.report-investment-card{padding:16px;}
+.report-investment-head{display:flex;align-items:center;gap:9px;}
+.report-investment-emoji{font-size:21px;line-height:1;}
+.report-investment-head b{display:block;font-size:12.5px;}
+.report-investment-head span{display:block;margin-top:2px;font-size:10.5px;color:var(--text-3);}
+.report-investment-total{margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold);white-space:nowrap;}
+.report-investment-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.report-investment-item{font-family:var(--font-mono);font-size:11px;color:var(--text-2);padding:5px 8px;border-radius:6px;background:var(--bg-1);border:1px solid var(--border-soft);}
+.report-investment-item b{color:var(--text-1);}
 .report-channel-row b{display:block;font-size:13px;}
 .report-channel-row span{display:block;margin-top:4px;font-size:11.5px;color:var(--text-3);}
 .report-channel-row .value{text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--teal);}
@@ -1372,12 +1382,16 @@ function viewRelatorios(){
   const chBreak = channelBreakdown();
   const rangeLabel = periodLabel();
   const reportChannels=Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
+  const investments=state.reservas.filter(r=>blocking(r) && channelMatches(r) && dateInPeriod(parseISO(r.checkin)) && Number(r.investimento||0)>0)
+    .map(r=>({id:r.id,valor:Number(r.investimento)}));
+  const investmentTotal=investments.reduce((sum,item)=>sum+item.valor,0);
   const html = `
   <div class="two-col-equal">
     <div class="card chart-card"><div class="card-head"><h3>Ocupação mensal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rOcc"></canvas></div></div>
     <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">Valor médio por diária · ${rangeLabel}</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
-    <div class="card report-channel-card"><div class="card-head"><h3>Resumo por canal</h3><span class="hint">${rangeLabel}</span></div>
+    <div class="report-left-stack"><div class="card report-channel-card"><div class="card-head"><h3>Resumo por canal</h3><span class="hint">${rangeLabel}</span></div>
       ${reportChannels.length? `<div class="report-channel-summary">${reportChannels.map(([channel,data])=>`<div class="report-channel-row"><div><b>${channel}</b><span>${data.count} reserva(s) · ${data.diarias} diária(s)</span></div><div class="value">${fmtMoney(data.receita)}<span>${ys.receitaConf>0?fmtPct(data.receita/ys.receitaConf):'0,0%'} da receita</span></div></div>`).join('')}</div>` : `<div class="empty-state" style="padding:28px 0;">${icon('chart',24)}<b>Sem reservas no período</b></div>`}
+    </div><div class="card report-investment-card"><div class="report-investment-head"><span class="report-investment-emoji" aria-hidden="true">💰</span><div><b>Investimentos no período</b><span>Acompanhamento informativo · não afeta cálculos</span></div><strong class="report-investment-total">${fmtMoney(investmentTotal)}</strong></div><div class="report-investment-list">${investments.length?investments.map(item=>`<span class="report-investment-item"><b>${item.id}</b> · ${fmtMoney(item.valor)}</span>`).join(''):'<span class="hint">Nenhum investimento no período.</span>'}</div></div></div>
     </div>
     <div class="card">
       <div class="card-head"><h3>Resumo por mês</h3></div>
