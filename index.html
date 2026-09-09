@@ -260,6 +260,10 @@ tfoot th:first-child{text-align:left; font-family:var(--font-display);}
 
 .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px; justify-content:space-between;}
 .toolbar-left{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+.dashboard-type-filter{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg-2);}
+.dashboard-type-filter button{border:0;border-radius:6px;background:transparent;color:var(--text-2);padding:6px 10px;font-size:12px;font-weight:700;}
+.dashboard-type-filter button:hover{color:var(--text-1);background:var(--bg-3);}
+.dashboard-type-filter button.is-active{background:var(--teal-glow);color:var(--teal);}
 .search-box{position:relative;}
 .search-box svg{position:absolute; left:11px; top:50%; transform:translateY(-50%); width:14px; height:14px; color:var(--text-3);}
 .search-box input{padding-left:32px; min-width:220px;}
@@ -336,8 +340,18 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .channel-meter i{display:block;height:100%;border-radius:inherit;background:var(--teal);}
 .channel-share{display:block;margin-top:5px;color:var(--text-3);font-size:11px;}
 .report-channel-card{align-self:start;}
+.report-left-stack{display:grid;align-content:start;gap:16px;}
 .report-channel-summary{display:grid;gap:10px;}
 .report-channel-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:12px 14px;border:1px solid var(--border-soft);border-radius:var(--radius-sm);background:var(--bg-1);}
+.report-investment-card{padding:16px;}
+.report-investment-head{display:flex;align-items:center;gap:9px;}
+.report-investment-emoji{font-size:21px;line-height:1;}
+.report-investment-head b{display:block;font-size:12.5px;}
+.report-investment-head span{display:block;margin-top:2px;font-size:10.5px;color:var(--text-3);}
+.report-investment-total{margin-left:auto;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--gold);white-space:nowrap;}
+.report-investment-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+.report-investment-item{font-family:var(--font-mono);font-size:11px;color:var(--text-2);padding:5px 8px;border-radius:6px;background:var(--bg-1);border:1px solid var(--border-soft);}
+.report-investment-item b{color:var(--text-1);}
 .report-channel-row b{display:block;font-size:13px;}
 .report-channel-row span{display:block;margin-top:4px;font-size:11.5px;color:var(--text-3);}
 .report-channel-row .value{text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--teal);}
@@ -546,6 +560,7 @@ const DOW = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM'];
 const STATUS_LIST = ['Consulta','Pré-reserva','Confirmada','Concluída','Cancelada'];
 const CANAL_LIST = ['Direto','Airbnb','Booking','Imobiliária','Indicação','Cortesia','Outro'];
 const CATEGORIA_DESPESA = ['Condomínio','Água','Luz','IPTU / Impostos','Manutenção','Limpeza','Seguro','Internet / TV','Reforma / Investimento','Outro'];
+const OPERATIONAL_COST_FIELDS = ['agua','luz','limpeza','diarista','manutencao','taxas','outros'];
 const BLOCKING_STATUSES = ['Confirmada','Concluída','Pré-reserva'];
 const CONFIRMED_STATUSES = ['Confirmada','Concluída'];
 const STATUS_COLOR = {'Confirmada':'teal','Concluída':'teal','Pré-reserva':'gold','Consulta':'muted','Cancelada':'coral'};
@@ -597,6 +612,7 @@ let state = {
   periodStart:'2026-01',
   periodEnd:'2026-12',
   channel:'',
+  dashboardType:'all',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
   reservas: [],
@@ -700,7 +716,8 @@ function linkedExpensesTotal(id){
 function computeR(r){
   const nights = diffNights(r.checkin,r.checkout);
   const grossRevenue = nights * Number(r.valorDiaria||0);
-  const manualCosts = ['agua','luz','limpeza','diarista','manutencao','investimento','taxas','outros'].reduce((s,k)=>s+Number(r[k]||0),0);
+  // Investimento/reposição é informativo e não entra nos custos operacionais.
+  const manualCosts = OPERATIONAL_COST_FIELDS.reduce((s,k)=>s+Number(r[k]||0),0);
   const linked = linkedExpensesTotal(r.id);
   const directCosts = manualCosts + linked;
   const netProfit = grossRevenue - directCosts;
@@ -714,6 +731,8 @@ function blocking(r){ return BLOCKING_STATUSES.includes(r.status); }
 function confirmedSt(r){ return CONFIRMED_STATUSES.includes(r.status); }
 function isCourtesy(r){ return r.canal==='Cortesia'; }
 function channelMatches(r){ return !state.channel || r.canal===state.channel; }
+function dashboardTypeMatches(r){ return state.dashboardType==='all' || (state.dashboardType==='courtesy'?isCourtesy(r):!isCourtesy(r)); }
+function dashboardMatches(r){ return channelMatches(r) && dashboardTypeMatches(r); }
 function channelLabel(){ return state.channel || 'Todos os canais'; }
 
 /* Conflicts: reservations (blocking) that share at least one night with another blocking reservation */
@@ -733,13 +752,13 @@ function conflictNightSet(excludeId){
 }
 
 /* ---------------- MONTH / YEAR STATS ---------------- */
-function computeMonthStats(year,month){
+function computeMonthStats(year,month,matches=channelMatches){
   const dias = daysInMonth(year,month);
   let alugadasSet = new Set(), comerciaisSet = new Set(), cortesiaSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
   let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0, custosCortesiaConf=0;
   state.reservas.forEach(r=>{
     if(!blocking(r)) return;
-    if(!channelMatches(r)) return;
+    if(!matches(r)) return;
     const n = nightsInMonth(r,year,month);
     if(n<=0) return;
     reservasSet.add(r.id);
@@ -764,12 +783,12 @@ function computeMonthStats(year,month){
 }
 function monthKey(year,month){ return `${year}-${pad(month+1)}`; }
 function parseMonthKey(key){ const [year,month]=key.split('-').map(Number); return {year,month:month-1}; }
-function periodMonths(startKey=state.periodStart,endKey=state.periodEnd){
+function periodMonths(startKey=state.periodStart,endKey=state.periodEnd,matches=channelMatches){
   const start=parseMonthKey(startKey), end=parseMonthKey(endKey), months=[];
   let cursor=new Date(start.year,start.month,1), last=new Date(end.year,end.month,1);
   while(cursor<=last){
     const year=cursor.getFullYear(), month=cursor.getMonth();
-    months.push({year,month,key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`,stats:computeMonthStats(year,month)});
+    months.push({year,month,key:monthKey(year,month),label:`${MESES_ABR[month]}/${String(year).slice(-2)}`,stats:computeMonthStats(year,month,matches)});
     cursor=new Date(year,month+1,1);
   }
   return months;
@@ -780,8 +799,8 @@ function dateInPeriod(date){
   return key>=state.periodStart && key<=state.periodEnd;
 }
 function reservationInPeriod(r){ return nightsOf(r).some(k=>dateInPeriod(parseISO(k))); }
-function computePeriodStats(){
-  const period = periodMonths();
+function computePeriodStats(matches=channelMatches){
+  const period = periodMonths(state.periodStart,state.periodEnd,matches);
   const months = period.map(item=>item.stats);
   const dias = months.reduce((total,item)=>total+item.dias,0);
   const sum = (k)=>months.reduce((s,m)=>s+m[k],0);
@@ -795,7 +814,7 @@ function computePeriodStats(){
   const ocupacao = dias>0? alugadas/dias:0;
   const adr = alugadas>0? receitaConf/alugadas:0;
   const revpar = dias>0? receitaConf/dias:0;
-  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r));
+  const reservasPeriodo = state.reservas.filter(r=>blocking(r) && matches(r) && reservationInPeriod(r));
   const reservasComerciais = reservasPeriodo.filter(r=>!isCourtesy(r));
   const reservasConfPeriodo = reservasComerciais.filter(confirmedSt);
   const losMedio = reservasComerciais.length? reservasComerciais.reduce((s,r)=>s+diffNights(r.checkin,r.checkout),0)/reservasComerciais.length:0;
@@ -805,10 +824,10 @@ function computePeriodStats(){
     lucroConf,lucroProj,margemConf:receitaConf>0?lucroConf/receitaConf:0,adr,revpar,losMedio,ticketMedio,saldoReceber,
     numReservas:reservasPeriodo.length,numReservasComerciais:reservasComerciais.length,diarias:alugadas};
 }
-function channelBreakdown(){
+function channelBreakdown(matches=channelMatches){
   const map={};
   state.reservas.forEach(r=>{
-    if(!blocking(r) || !channelMatches(r)) return;
+    if(!blocking(r) || !matches(r)) return;
     const n=nightsOf(r).filter(k=>dateInPeriod(parseISO(k))).length; if(n<=0) return;
     const c = computeR(r); const share = c.nights>0? c.commercialRevenue*(n/c.nights):0;
     map[r.canal]=map[r.canal]||{receita:0,count:0,diarias:0}; map[r.canal].receita+=share; map[r.canal].count+=1; map[r.canal].diarias+=n;
@@ -882,9 +901,9 @@ function updateFootRing(){
    VIEW: DASHBOARD
    ================================================================ */
 function viewDashboard(){
-  const ys = computePeriodStats();
+  const ys = computePeriodStats(dashboardMatches);
   const rangeLabel = periodLabel();
-  const upcomingAll = state.reservas.filter(r=>blocking(r) && channelMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
+  const upcomingAll = state.reservas.filter(r=>blocking(r) && dashboardMatches(r) && reservationInPeriod(r) && parseISO(r.checkin) >= new Date(new Date().setHours(0,0,0,0)))
     .sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
   const upcoming = upcomingAll.slice(0,5);
   const upcomingStats = upcomingAll.reduce((totals,r)=>{
@@ -894,12 +913,13 @@ function viewDashboard(){
     return totals;
   },{commercialNights:0,courtesyNights:0});
   const conflicts = [...findConflicts()].filter(id=>{ const r=state.reservas.find(item=>item.id===id); return r && reservationInPeriod(r); });
-  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return channelMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
-  const chBreak = channelBreakdown();
+  const overdue = state.reservas.filter(r=>{ const c=computeR(r); return dashboardMatches(r) && reservationInPeriod(r) && c.balance>0.004 && parseISO(r.checkout) < new Date() && r.status!=='Cancelada'; });
+  const chBreak = channelBreakdown(dashboardMatches);
   const channelEntries = Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
   const channelTotal = channelEntries.reduce((sum,[,data])=>sum+data.receita,0);
 
   const html = `
+  <div class="toolbar"><div class="toolbar-left"><span class="hint">Tipo de reserva</span><div class="dashboard-type-filter" role="group" aria-label="Filtrar painel por tipo de reserva">${[['all','Todos'],['commercial','Comerciais'],['courtesy','Cortesias']].map(([value,label])=>`<button type="button" class="${state.dashboardType===value?'is-active':''}" data-dashboard-type="${value}" aria-pressed="${state.dashboardType===value}">${label}</button>`).join('')}</div></div></div>
   <div class="hero">
     <div class="card hero-ring-card">
       <div class="ring-wrap">${ringSVG(ys.ocupacao)}<div class="ring-label"><b>${fmtPct(ys.ocupacao)}</b><span>Ocupação comercial</span></div></div>
@@ -961,6 +981,7 @@ function viewDashboard(){
   </div>`;
 
   document.getElementById('view-root').innerHTML = html;
+  document.querySelectorAll('[data-dashboard-type]').forEach(button=>button.addEventListener('click',()=>{ state.dashboardType=button.dataset.dashboardType; viewDashboard(); }));
 
   if(!ensureChartSupport()) return;
 
@@ -1104,7 +1125,7 @@ function filteredReservas(){
     if(f.status && r.status!==f.status) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!(r.hospede.toLowerCase().includes(s)||r.id.toLowerCase().includes(s)||(r.periodo||'').toLowerCase().includes(s))) return false; }
     return true;
-  }).sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin));
+  }).sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin));
 }
 function viewReservas(){
   const list = filteredReservas();
@@ -1181,14 +1202,14 @@ function openReservaForm(id, prefillCheckin){
           <div class="field"><label>Período / motivo</label><input name="periodo" value="${r.periodo||''}" placeholder="Ex: Réveillon, Carnaval..."></div>
           <div class="field span2 calc-note" id="nightsPreview"></div>
         </div>
-        <fieldset style="margin-top:16px;"><legend>Custos diretos (R$)</legend>
+        <fieldset style="margin-top:16px;"><legend>Custos operacionais da reserva (R$)</legend>
           <div class="form-grid">
             <div class="field"><label>Água</label><input type="number" step="0.01" name="agua" value="${r.agua}"></div>
             <div class="field"><label>Luz</label><input type="number" step="0.01" name="luz" value="${r.luz}"></div>
             <div class="field"><label>Limpeza</label><input type="number" step="0.01" name="limpeza" value="${r.limpeza}"></div>
             <div class="field"><label>Diarista</label><input type="number" step="0.01" name="diarista" value="${r.diarista}"></div>
             <div class="field"><label>Manutenção</label><input type="number" step="0.01" name="manutencao" value="${r.manutencao}"></div>
-            <div class="field"><label>Investimento / reposição</label><input type="number" step="0.01" name="investimento" value="${r.investimento}"></div>
+            <div class="field"><label>Investimento / reposição (informativo)</label><input type="number" step="0.01" name="investimento" value="${r.investimento}"></div>
             <div class="field"><label>Taxas / comissão</label><input type="number" step="0.01" name="taxas" value="${r.taxas}"></div>
             <div class="field"><label>Outros custos</label><input type="number" step="0.01" name="outros" value="${r.outros}"></div>
           </div>
@@ -1363,13 +1384,16 @@ function viewRelatorios(){
   const chBreak = channelBreakdown();
   const rangeLabel = periodLabel();
   const reportChannels=Object.entries(chBreak).sort((a,b)=>b[1].receita-a[1].receita);
+  const investments=state.reservas.filter(r=>blocking(r) && channelMatches(r) && dateInPeriod(parseISO(r.checkin)) && Number(r.investimento||0)>0)
+    .map(r=>({id:r.id,valor:Number(r.investimento)}));
+  const investmentTotal=investments.reduce((sum,item)=>sum+item.valor,0);
   const html = `
   <div class="two-col-equal">
     <div class="card chart-card"><div class="card-head"><h3>Ocupação mensal</h3><span class="hint">${rangeLabel}</span></div><div class="chart-box"><canvas id="rOcc"></canvas></div></div>
     <div class="card chart-card"><div class="card-head"><h3>Diária média (ADR) por mês</h3><span class="hint">Valor médio por diária · ${rangeLabel}</span></div><div class="chart-box"><canvas id="rAdr"></canvas></div></div>
-    <div class="card report-channel-card"><div class="card-head"><h3>Resumo por canal</h3><span class="hint">${rangeLabel}</span></div>
+    <div class="report-left-stack"><div class="card report-channel-card"><div class="card-head"><h3>Resumo por canal</h3><span class="hint">${rangeLabel}</span></div>
       ${reportChannels.length? `<div class="report-channel-summary">${reportChannels.map(([channel,data])=>`<div class="report-channel-row"><div><b>${channel}</b><span>${data.count} reserva(s) · ${data.diarias} diária(s)</span></div><div class="value">${fmtMoney(data.receita)}<span>${ys.receitaConf>0?fmtPct(data.receita/ys.receitaConf):'0,0%'} da receita</span></div></div>`).join('')}</div>` : `<div class="empty-state" style="padding:28px 0;">${icon('chart',24)}<b>Sem reservas no período</b></div>`}
-    </div>
+    </div><div class="card report-investment-card"><div class="report-investment-head"><span class="report-investment-emoji" aria-hidden="true">💰</span><div><b>Investimentos no período</b><span>Acompanhamento informativo · não afeta cálculos</span></div><strong class="report-investment-total">${fmtMoney(investmentTotal)}</strong></div><div class="report-investment-list">${investments.length?investments.map(item=>`<span class="report-investment-item"><b>${item.id}</b> · ${fmtMoney(item.valor)}</span>`).join(''):'<span class="hint">Nenhum investimento no período.</span>'}</div></div></div>
     <div class="card">
       <div class="card-head"><h3>Resumo por mês</h3></div>
       <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${ys.numReservas}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${ys.alugadas}</b></div></div>
