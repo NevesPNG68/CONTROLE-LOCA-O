@@ -560,6 +560,7 @@ const DOW = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM'];
 const STATUS_LIST = ['Consulta','Pré-reserva','Confirmada','Concluída','Cancelada'];
 const CANAL_LIST = ['Direto','Airbnb','Booking','Imobiliária','Indicação','Cortesia','Outro'];
 const CATEGORIA_DESPESA = ['Condomínio','Água','Luz','IPTU / Impostos','Manutenção','Limpeza','Seguro','Internet / TV','Reforma / Investimento','Outro'];
+const OPERATIONAL_COST_FIELDS = ['agua','luz','limpeza','diarista','manutencao','taxas','outros'];
 const BLOCKING_STATUSES = ['Confirmada','Concluída','Pré-reserva'];
 const CONFIRMED_STATUSES = ['Confirmada','Concluída'];
 const STATUS_COLOR = {'Confirmada':'teal','Concluída':'teal','Pré-reserva':'gold','Consulta':'muted','Cancelada':'coral'};
@@ -715,7 +716,8 @@ function linkedExpensesTotal(id){
 function computeR(r){
   const nights = diffNights(r.checkin,r.checkout);
   const grossRevenue = nights * Number(r.valorDiaria||0);
-  const manualCosts = ['agua','luz','limpeza','diarista','manutencao','investimento','taxas','outros'].reduce((s,k)=>s+Number(r[k]||0),0);
+  // Investimento/reposição é informativo e não entra nos custos operacionais.
+  const manualCosts = OPERATIONAL_COST_FIELDS.reduce((s,k)=>s+Number(r[k]||0),0);
   const linked = linkedExpensesTotal(r.id);
   const directCosts = manualCosts + linked;
   const netProfit = grossRevenue - directCosts;
@@ -1200,14 +1202,14 @@ function openReservaForm(id, prefillCheckin){
           <div class="field"><label>Período / motivo</label><input name="periodo" value="${r.periodo||''}" placeholder="Ex: Réveillon, Carnaval..."></div>
           <div class="field span2 calc-note" id="nightsPreview"></div>
         </div>
-        <fieldset style="margin-top:16px;"><legend>Custos diretos (R$)</legend>
+        <fieldset style="margin-top:16px;"><legend>Custos operacionais da reserva (R$)</legend>
           <div class="form-grid">
             <div class="field"><label>Água</label><input type="number" step="0.01" name="agua" value="${r.agua}"></div>
             <div class="field"><label>Luz</label><input type="number" step="0.01" name="luz" value="${r.luz}"></div>
             <div class="field"><label>Limpeza</label><input type="number" step="0.01" name="limpeza" value="${r.limpeza}"></div>
             <div class="field"><label>Diarista</label><input type="number" step="0.01" name="diarista" value="${r.diarista}"></div>
             <div class="field"><label>Manutenção</label><input type="number" step="0.01" name="manutencao" value="${r.manutencao}"></div>
-            <div class="field"><label>Investimento / reposição</label><input type="number" step="0.01" name="investimento" value="${r.investimento}"></div>
+            <div class="field"><label>Investimento / reposição (informativo)</label><input type="number" step="0.01" name="investimento" value="${r.investimento}"></div>
             <div class="field"><label>Taxas / comissão</label><input type="number" step="0.01" name="taxas" value="${r.taxas}"></div>
             <div class="field"><label>Outros custos</label><input type="number" step="0.01" name="outros" value="${r.outros}"></div>
           </div>
