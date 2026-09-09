@@ -24,6 +24,8 @@ html[data-theme="dark"]{
   --teal:#33C9B8; --teal-dim:#1D6E64; --teal-glow:rgba(51,201,184,.16);
   --gold:#EFB24A; --gold-dim:#8A6420; --gold-glow:rgba(239,178,74,.14);
   --coral:#F0705A; --coral-dim:#7A3327; --coral-glow:rgba(240,112,90,.16);
+  --chart-revenue:#FFD166; --chart-profit:#A3E635; --chart-costs:#B07CFF; --chart-courtesy:#4EA7FF;
+  --chart-occupancy:#4EA7FF; --chart-adr:#FFD166;
   --shadow:0 12px 32px rgba(0,0,0,.35);
 }
 html[data-theme="light"]{
@@ -33,6 +35,8 @@ html[data-theme="light"]{
   --teal:#0E7A6D; --teal-dim:#B9E2DA; --teal-glow:rgba(14,122,109,.14);
   --gold:#956400; --gold-dim:#F3D89F; --gold-glow:rgba(149,100,0,.14);
   --coral:#B43B28; --coral-dim:#F2C7BE; --coral-glow:rgba(180,59,40,.13);
+  --chart-revenue:#A66A00; --chart-profit:#4D7C0F; --chart-costs:#7C3AED; --chart-courtesy:#2563EB;
+  --chart-occupancy:#2563EB; --chart-adr:#A66A00;
   --shadow:0 12px 28px rgba(20,40,35,.14);
 }
 *{box-sizing:border-box; margin:0; padding:0;}
@@ -989,10 +993,10 @@ function viewDashboard(){
   new Chart(document.getElementById('chartMonthly'),{
     type:'bar',
     data:{ labels:ys.period.map(item=>item.label), datasets:[
-      {label:'Receita', data:months.map(m=>m.receitaConf), backgroundColor:cssv('--teal'), borderRadius:5, maxBarThickness:22},
-      {label:'Custos comerciais + despesas', data:months.map(m=>m.custosConf+m.despesasGerais), backgroundColor:cssv('--coral'), borderRadius:5, maxBarThickness:22},
-      {label:'Custos de cortesia', data:months.map(m=>m.custosCortesiaConf), backgroundColor:cssv('--gold'), borderRadius:5, maxBarThickness:22},
-      {label:'Lucro', data:months.map(m=>m.lucroConf), backgroundColor:cssv('--gold'), borderRadius:5, maxBarThickness:22},
+      {label:'Receita', data:months.map(m=>m.receitaConf), backgroundColor:cssv('--chart-revenue'), borderRadius:5, maxBarThickness:22},
+      {label:'Custos comerciais + despesas', data:months.map(m=>m.custosConf+m.despesasGerais), backgroundColor:cssv('--chart-costs'), borderRadius:5, maxBarThickness:22},
+      {label:'Custos de cortesia', data:months.map(m=>m.custosCortesiaConf), backgroundColor:cssv('--chart-courtesy'), borderRadius:5, maxBarThickness:22},
+      {label:'Lucro', data:months.map(m=>m.lucroConf), backgroundColor:cssv('--chart-profit'), borderRadius:5, maxBarThickness:22},
     ]},
     options: chartOpts({stacked:false})
   });
@@ -1409,11 +1413,11 @@ function viewRelatorios(){
   document.getElementById('view-root').innerHTML = html;
   if(!ensureChartSupport()) return;
   const periodLabels = ys.period.map(item=>item.label);
-  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--teal'),backgroundColor:cssv('--teal-glow'),fill:true,tension:.35,pointRadius:3}]},
+  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--chart-occupancy'),backgroundColor:cssv('--chart-occupancy'),fill:true,tension:.35,pointRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:cssv('--text-3'),font:{size:11}}},y:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(1)+'%'}}}} });
   const adrOptions=chartOpts();
   adrOptions.scales.y.title={display:true,text:'R$ por diária',color:cssv('--text-3'),font:{size:11}};
-  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:periodLabels, datasets:[{label:'Valor médio da diária',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--gold'),borderRadius:5,maxBarThickness:22}]},
+  new Chart(document.getElementById('rAdr'),{ type:'bar', data:{ labels:periodLabels, datasets:[{label:'Valor médio da diária',data:ys.months.map(m=>m.alugadas>0? m.receitaConf/m.alugadas:0),backgroundColor:cssv('--chart-adr'),borderRadius:5,maxBarThickness:22}]},
     options: adrOptions });
 }
 
