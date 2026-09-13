@@ -512,6 +512,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
           <span class="period-arrow">→</span>
           <label for="periodEnd">Até</label><select class="select" id="periodEnd"></select>
         </div>
+        <select class="select channel-select" id="propertySelect" aria-label="Filtrar por imóvel"></select>
         <select class="select channel-select" id="channelSelect" aria-label="Filtrar por canal"><option value="">Todos os canais</option></select>
         <button class="icon-btn" id="themeToggle" aria-label="Alternar tema"></button>
         <span class="source-status" id="sourceStatus">Planilha carregada</span>
@@ -563,6 +564,7 @@ const MESES_ABR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','
 const DOW = ['SEG','TER','QUA','QUI','SEX','SÁB','DOM'];
 const STATUS_LIST = ['Consulta','Pré-reserva','Confirmada','Concluída','Cancelada'];
 const CANAL_LIST = ['Direto','Airbnb','Booking','Imobiliária','Indicação','Cortesia','Outro'];
+const IMOVEL_LIST = ['Casa Cinza','Casa Laranja'];
 const CATEGORIA_DESPESA = ['Condomínio','Água','Luz','IPTU / Impostos','Manutenção','Limpeza','Seguro','Internet / TV','Reforma / Investimento','Outro'];
 const OPERATIONAL_COST_FIELDS = ['agua','luz','limpeza','diarista','manutencao','taxas','outros'];
 const BLOCKING_STATUSES = ['Confirmada','Concluída','Pré-reserva'];
@@ -597,7 +599,7 @@ const StorageAPI = {
 function seedReservas(){
   return [{
     id:'LOC-001', hospede:'Exemplo — Natal/Ano Novo', checkin:'2026-12-25', checkout:'2027-01-04',
-    valorDiaria:1100, periodo:'Natal / Réveillon', status:'Confirmada', canal:'Direto',
+    valorDiaria:1100, periodo:'Natal / Réveillon', status:'Confirmada', canal:'Direto', imovel:'Casa Cinza',
     agua:0, luz:0, limpeza:0, diarista:0, manutencao:0, investimento:0, taxas:0, outros:0,
     recebido:0, observacoes:'25/12/2026 a 04/01/2027 = 10 diárias (exemplo da planilha original).'
   }];
@@ -605,7 +607,7 @@ function seedReservas(){
 function seedDespesas(){
   return [{
     id:'DESP-001', data:'2026-12-26', categoria:'Condomínio', descricao:'Condomínio referente à locação de exemplo',
-    valor:100, reservaId:'LOC-001', observacoes:''
+    valor:100, reservaId:'LOC-001', observacoes:'', imovel:'Casa Cinza'
   }];
 }
 
@@ -616,6 +618,7 @@ let state = {
   periodStart:'2026-01',
   periodEnd:'2026-12',
   channel:'',
+  property:'Casa Cinza',
   dashboardType:'all',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
@@ -672,13 +675,13 @@ function parseReservas(rows){
     valorDiaria:Number(row[5]||0), periodo:safeText(row[7]), status:safeText(row[8]||'Consulta'), canal:safeText(row[9]||'Outro'),
     agua:Number(row[10]||0), luz:Number(row[11]||0), limpeza:Number(row[12]||0), diarista:Number(row[13]||0),
     manutencao:Number(row[14]||0), investimento:Number(row[15]||0), taxas:Number(row[16]||0), outros:Number(row[17]||0),
-    recebido:Number(row[23]||0), observacoes:safeText(row[26])
+    recebido:Number(row[23]||0), observacoes:safeText(row[26]), imovel:safeText(row[27]||'Casa Cinza').trim() || 'Casa Cinza'
   })).filter(r=>r.checkin && r.checkout);
 }
 function parseDespesas(rows){
   return rows.slice(5).filter(row=>row[0] && Number(row[3]||0)!==0).map((row,index)=>({
     id:'DESP-'+String(index+1).padStart(3,'0'), data:excelDateToISO(row[0]), categoria:safeText(row[1]||'Outro'),
-    descricao:safeText(row[2]), valor:Number(row[3]||0), reservaId:safeText(row[4]).trim(), observacoes:safeText(row[5])
+    descricao:safeText(row[2]), valor:Number(row[3]||0), reservaId:safeText(row[4]).trim(), observacoes:safeText(row[5]), imovel:safeText(row[6]).trim()
   })).filter(e=>e.data);
 }
 async function loadWorkbookData(){
@@ -734,7 +737,9 @@ function computeR(r){
 function blocking(r){ return BLOCKING_STATUSES.includes(r.status); }
 function confirmedSt(r){ return CONFIRMED_STATUSES.includes(r.status); }
 function isCourtesy(r){ return r.canal==='Cortesia'; }
-function channelMatches(r){ return !state.channel || r.canal===state.channel; }
+function propertyMatches(r){ return !state.property || (r.imovel||'Casa Cinza')===state.property; }
+function expensePropertyMatches(e){ return !state.property || !e.imovel || e.imovel===state.property; }
+function channelMatches(r){ return (!state.channel || r.canal===state.channel) && propertyMatches(r); }
 function dashboardTypeMatches(r){ return state.dashboardType==='all' || (state.dashboardType==='courtesy'?isCourtesy(r):!isCourtesy(r)); }
 function dashboardMatches(r){ return channelMatches(r) && dashboardTypeMatches(r); }
 function channelLabel(){ return state.channel || 'Todos os canais'; }
@@ -743,13 +748,13 @@ function channelLabel(){ return state.channel || 'Todos os canais'; }
 function findConflicts(){
   const blockers = state.reservas.filter(r=>blocking(r) && channelMatches(r));
   const map = {}; // nightKey -> [ids]
-  blockers.forEach(r=>{ nightsOf(r).forEach(k=>{ (map[k]=map[k]||[]).push(r.id); }); });
+  blockers.forEach(r=>{ nightsOf(r).forEach(k=>{ const key=state.property?k:`${r.imovel||'Casa Cinza'}|${k}`; (map[key]=map[key]||[]).push(r.id); }); });
   const conflictIds = new Set();
   Object.values(map).forEach(ids=>{ if(ids.length>1) ids.forEach(id=>conflictIds.add(id)); });
   return conflictIds;
 }
-function conflictNightSet(excludeId){
-  const blockers = state.reservas.filter(r=>blocking(r) && channelMatches(r) && r.id!==excludeId);
+function conflictNightSet(excludeId, property=state.property){
+  const blockers = state.reservas.filter(r=>blocking(r) && (!state.channel || r.canal===state.channel) && (!property || (r.imovel||'Casa Cinza')===property) && r.id!==excludeId);
   const set = new Set();
   blockers.forEach(r=>nightsOf(r).forEach(k=>set.add(k)));
   return set;
@@ -757,7 +762,7 @@ function conflictNightSet(excludeId){
 
 /* ---------------- MONTH / YEAR STATS ---------------- */
 function computeMonthStats(year,month,matches=channelMatches){
-  const dias = daysInMonth(year,month);
+  const dias = daysInMonth(year,month) * (state.property ? 1 : IMOVEL_LIST.length);
   let alugadasSet = new Set(), comerciaisSet = new Set(), cortesiaSet = new Set(), tentativeSet = new Set(), reservasSet = new Set();
   let receitaConf=0, receitaProj=0, custosConf=0, custosProj=0, custosCortesiaConf=0;
   state.reservas.forEach(r=>{
@@ -769,13 +774,13 @@ function computeMonthStats(year,month,matches=channelMatches){
     const c = computeR(r);
     const revShare = c.nights>0? c.grossRevenue*(n/c.nights):0;
     const costShare = c.nights>0? c.directCosts*(n/c.nights):0;
-    nightsOf(r).forEach(k=>{ const d=parseISO(k); if(d.getFullYear()===year&&d.getMonth()===month){ alugadasSet.add(k); (isCourtesy(r)?cortesiaSet:comerciaisSet).add(k); if(!confirmedSt(r)) tentativeSet.add(k); } });
+    nightsOf(r).forEach(k=>{ const d=parseISO(k); if(d.getFullYear()===year&&d.getMonth()===month){ const occupancyKey=state.property?k:`${r.imovel||'Casa Cinza'}|${k}`; alugadasSet.add(occupancyKey); (isCourtesy(r)?cortesiaSet:comerciaisSet).add(occupancyKey); if(!confirmedSt(r)) tentativeSet.add(occupancyKey); } });
     if(isCourtesy(r)){ if(confirmedSt(r)) custosCortesiaConf+=costShare; }
     else { if(confirmedSt(r)){ receitaConf+=revShare; custosConf+=costShare; } receitaProj+=revShare; custosProj+=costShare; }
   });
   const despesasGerais = state.despesas.filter(e=>{
     if(e.reservaId) return false; // linked ones already counted inside directCosts
-    const d=parseISO(e.data); return d && d.getFullYear()===year && d.getMonth()===month;
+    const d=parseISO(e.data); return expensePropertyMatches(e) && d && d.getFullYear()===year && d.getMonth()===month;
   }).reduce((s,e)=>s+Number(e.valor||0),0);
   const ocupadas = alugadasSet.size, alugadas = comerciaisSet.size, cortesia = cortesiaSet.size;
   const disponiveis = dias - ocupadas;
@@ -1052,7 +1057,7 @@ function viewAgenda(){
       const hasConflict = occ.some(r=>conflictSet.has(r.id));
       cls = hasConflict? 'conflict' : (hasConfirmed? 'rented':'tentative');
       guest = occ.map(r=>r.hospede).join(' + ');
-      tag = occ.map(r=>r.id).join(', ');
+      tag = occ.map(r=>`${r.id} · ${r.imovel||'Casa Cinza'}`).join(', ');
       badge = hasConflict? `<span class="checkbadge" style="color:var(--coral)">CONFLITO</span>` : '';
     }
     cells += `<div class="cal-cell ${cls} ${isToday?'today':''}" data-day="${key}">
@@ -1160,7 +1165,7 @@ function viewReservas(){
         ${list.map(r=>{ const c=computeR(r); const isConflict=conflictSet.has(r.id);
           return `<tr>
             <td><span class="pill pill-${isConflict?'coral':'muted'}">${r.id}</span></td>
-            <td><b>${r.hospede}</b></td>
+            <td><b>${r.hospede}</b><small style="display:block;color:var(--text-3);font-size:11px;">${r.imovel||'Casa Cinza'}</small></td>
             <td class="num">${fmtDate(r.checkin)}</td>
             <td class="num">${fmtDate(r.checkout)}</td>
             <td class="num">${c.nights}</td>
@@ -1187,7 +1192,7 @@ function nextReservaId(){
 function openReservaForm(id, prefillCheckin){
   const editing = !!id;
   const r = editing? state.reservas.find(x=>x.id===id) : {
-    id:nextReservaId(), hospede:'', checkin:prefillCheckin||'', checkout:'', valorDiaria:1100, periodo:'', status:'Confirmada', canal:'Direto',
+    id:nextReservaId(), hospede:'', checkin:prefillCheckin||'', checkout:'', valorDiaria:1100, periodo:'', status:'Confirmada', canal:'Direto', imovel:state.property||'Casa Cinza',
     agua:0,luz:0,limpeza:0,diarista:0,manutencao:0,investimento:0,taxas:0,outros:0, recebido:0, observacoes:''
   };
   openModal(`
@@ -1203,6 +1208,7 @@ function openReservaForm(id, prefillCheckin){
           <div class="field"><label>Valor diária (R$)</label><input required type="number" step="0.01" min="0" name="valorDiaria" value="${r.valorDiaria}"></div>
           <div class="field"><label>Status</label><select name="status">${STATUS_LIST.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
           <div class="field"><label>Canal</label><select name="canal">${CANAL_LIST.map(s=>`<option ${r.canal===s?'selected':''}>${s}</option>`).join('')}</select></div>
+          <div class="field"><label>Imóvel</label><select name="imovel">${IMOVEL_LIST.map(s=>`<option ${r.imovel===s?'selected':''}>${s}</option>`).join('')}</select></div>
           <div class="field"><label>Período / motivo</label><input name="periodo" value="${r.periodo||''}" placeholder="Ex: Réveillon, Carnaval..."></div>
           <div class="field span2 calc-note" id="nightsPreview"></div>
         </div>
@@ -1256,7 +1262,7 @@ function openReservaForm(id, prefillCheckin){
       msgEl.textContent='A data de saída deve ser posterior à data de entrada.'; msgEl.classList.add('show'); return;
     }
     if(BLOCKING_STATUSES.includes(data.status)){
-      const blockedNights = conflictNightSet(editing? r.id : null);
+      const blockedNights = conflictNightSet(editing? r.id : null, data.imovel);
       const mine = nightsOf({checkin:data.checkin, checkout:data.checkout});
       const clash = mine.some(k=>blockedNights.has(k));
       if(clash){
@@ -1279,6 +1285,7 @@ function filteredDespesas(){
   const f = state.filters.despesas;
   return state.despesas.filter(e=>{
     if(!dateInPeriod(parseISO(e.data))) return false;
+    if(!expensePropertyMatches(e)) return false;
     if(f.categoria && e.categoria!==f.categoria) return false;
     if(f.search){ const s=f.search.toLowerCase(); if(!((e.descricao||'').toLowerCase().includes(s)||(e.id||'').toLowerCase().includes(s))) return false; }
     return true;
@@ -1311,7 +1318,7 @@ function viewDespesas(){
           <td><span class="pill pill-muted">${e.categoria}</span></td>
           <td>${e.descricao||'—'}</td>
           <td class="num">${fmtMoney(e.valor)}</td>
-          <td>${e.reservaId? `<span class="pill pill-teal">${e.reservaId}</span>` : `<span style="color:var(--text-3)">Geral da casa</span>`}</td>
+          <td>${e.reservaId? `<span class="pill pill-teal">${e.reservaId}</span>` : `<span style="color:var(--text-3)">Geral da casa</span>`}<small style="display:block;color:var(--text-3);font-size:11px;">${e.imovel||'Casa Cinza'}</small></td>
           <td style="max-width:180px;white-space:normal;color:var(--text-3);font-size:12px;">${e.observacoes||''}</td>
         </tr>`).join('')}
       </tbody>
@@ -1327,7 +1334,7 @@ function nextDespesaId(){
 }
 function openDespesaForm(id){
   const editing = !!id;
-  const e = editing? state.despesas.find(x=>x.id===id) : {id:nextDespesaId(), data:todayKey(), categoria:'Condomínio', descricao:'', valor:0, reservaId:'', observacoes:''};
+  const e = editing? state.despesas.find(x=>x.id===id) : {id:nextDespesaId(), data:todayKey(), categoria:'Condomínio', descricao:'', valor:0, reservaId:'', observacoes:'', imovel:state.property||'Casa Cinza'};
   openModal(`
     <div class="modal-head"><h2>${editing?'Editar despesa':'Nova despesa'}</h2><button class="icon-btn" id="mClose">${icon('x',16)}</button></div>
     <form id="despesaForm">
@@ -1340,6 +1347,7 @@ function openDespesaForm(id){
           <div class="field"><label>Reserva relacionada (opcional)</label>
             <select name="reservaId"><option value="">Geral da casa</option>${state.reservas.map(r=>`<option value="${r.id}" ${e.reservaId===r.id?'selected':''}>${r.id} — ${r.hospede}</option>`).join('')}</select>
           </div>
+          <div class="field"><label>Imóvel</label><select name="imovel">${IMOVEL_LIST.map(s=>`<option ${e.imovel===s?'selected':''}>${s}</option>`).join('')}</select></div>
           <div class="field span2"><label>Observações</label><textarea name="observacoes" rows="2">${e.observacoes||''}</textarea></div>
         </div>
         <div class="calc-note" style="margin-top:10px;">Se vincular a uma reserva, o valor entra automaticamente nos custos diretos e no lucro daquela locação.</div>
@@ -1520,6 +1528,11 @@ function syncChannelSelect(){
   const allChannelsLabel=window.matchMedia('(max-width:560px)').matches?'Canais':'Todos os canais';
   select.innerHTML=`<option value="">${allChannelsLabel}</option>`+CANAL_LIST.map(c=>`<option value="${c}" ${c===state.channel?'selected':''}>${c}</option>`).join('');
 }
+function syncPropertySelect(){
+  const select=document.getElementById('propertySelect');
+  if(!select) return;
+  select.innerHTML='<option value="">Todas as casas</option>'+IMOVEL_LIST.map(name=>`<option value="${name}" ${name===state.property?'selected':''}>${name}</option>`).join('');
+}
 function changePeriod(changed){
   const start=document.getElementById('periodStart').value, end=document.getElementById('periodEnd').value;
   if(start>end){
@@ -1533,6 +1546,7 @@ function changePeriod(changed){
 document.getElementById('periodStart').addEventListener('change',()=>changePeriod('start'));
 document.getElementById('periodEnd').addEventListener('change',()=>changePeriod('end'));
 document.getElementById('channelSelect').addEventListener('change',e=>{ state.channel=e.target.value; render(); });
+document.getElementById('propertySelect').addEventListener('change',e=>{ state.property=e.target.value; render(); });
 
 /* ---------------- MAIN RENDER DISPATCH ---------------- */
 function render(){
@@ -1542,6 +1556,7 @@ function render(){
   const periodFilter=document.querySelector('.period-filter');
   if(periodFilter) periodFilter.style.display=state.view==='agenda'?'none':'';
   syncPeriodSelects();
+  syncPropertySelect();
   syncChannelSelect();
   updateThemeIcon();
   const map = {dashboard:viewDashboard, agenda:viewAgenda, reservas:viewReservas, despesas:viewDespesas, relatorios:viewRelatorios, config:viewConfig};
