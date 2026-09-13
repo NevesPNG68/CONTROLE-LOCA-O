@@ -117,6 +117,8 @@ input,select,textarea{font-family:inherit;}
 .period-filter:focus-within{border-color:var(--teal-dim);box-shadow:0 0 0 3px var(--teal-glow);}
 html[data-theme="dark"] .period-filter .select option{background:var(--bg-2);color:var(--text-1);}
 .property-select,.channel-select{width:136px;}
+.property-select{border-color:var(--gold-dim);box-shadow:0 0 0 1px var(--gold-glow) inset;}
+.property-select:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow);}
 #topbar.agenda-view .period-filter{display:none !important;}
 #menuToggle{display:none;}
 
@@ -630,7 +632,7 @@ let state = {
   periodStart:'2026-01',
   periodEnd:'2026-12',
   channel:'',
-  property:'Casa Cinza',
+  property:'',
   dashboardType:'all',
   calMonth: 11, // 0-indexed; default Dezembro (matches seed reservation)
   calYear: 2026,
@@ -1543,7 +1545,7 @@ function syncChannelSelect(){
 function syncPropertySelect(){
   const select=document.getElementById('propertySelect');
   if(!select) return;
-  select.innerHTML='<option value="">Todas as casas</option>'+IMOVEL_LIST.map(name=>`<option value="${name}" ${name===state.property?'selected':''}>${name}</option>`).join('');
+  select.innerHTML=`<option value="" ${state.property===''?'selected':''}>Todas as casas</option>`+IMOVEL_LIST.map(name=>`<option value="${name}" ${name===state.property?'selected':''}>${name}</option>`).join('');
 }
 function changePeriod(changed){
   const start=document.getElementById('periodStart').value, end=document.getElementById('periodEnd').value;
