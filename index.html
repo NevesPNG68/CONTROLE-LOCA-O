@@ -116,7 +116,7 @@ input,select,textarea{font-family:inherit;}
 .period-filter .period-arrow{color:var(--text-2);font-size:12px;}
 .period-filter:focus-within{border-color:var(--teal-dim);box-shadow:0 0 0 3px var(--teal-glow);}
 html[data-theme="dark"] .period-filter .select option{background:var(--bg-2);color:var(--text-1);}
-.channel-select{width:136px;}
+.property-select,.channel-select{width:136px;}
 #topbar.agenda-view .period-filter{display:none !important;}
 #menuToggle{display:none;}
 
@@ -439,10 +439,12 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   #topbar .title-wrap{min-width:0;}
   #topbar h1{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #topbar{align-items:flex-start;flex-wrap:wrap;}
-  #topbar .actions{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;gap:6px;width:100%;}
+  #topbar .actions{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto auto;gap:6px;width:100%;}
   .period-filter{grid-column:1;grid-row:1;min-width:0;display:grid;grid-template-columns:auto minmax(72px,1fr) auto auto minmax(72px,1fr);gap:4px;padding-left:8px;}
   .period-filter .select{min-width:0;width:100%;padding-left:4px;padding-right:20px;}
-  .channel-select{grid-column:1 / -1;grid-row:2;width:100%;min-width:0;max-width:none;}
+  /* No mobile, os filtros ficam em linhas próprias para manter o imóvel visível. */
+  .property-select{grid-column:1 / -1;grid-row:2;width:100%;min-width:0;max-width:none;}
+  .channel-select{grid-column:1 / -1;grid-row:3;width:100%;min-width:0;max-width:none;}
   #themeToggle{grid-column:2;grid-row:1;}
   /* Mantém a largura natural da tabela: o card desliza horizontalmente sem comprimir o hóspede. */
   .reservas-table{min-width:760px;table-layout:auto;}
@@ -512,7 +514,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
           <span class="period-arrow">→</span>
           <label for="periodEnd">Até</label><select class="select" id="periodEnd"></select>
         </div>
-        <select class="select channel-select" id="propertySelect" aria-label="Filtrar por imóvel"></select>
+        <select class="select property-select" id="propertySelect" aria-label="Filtrar por imóvel"></select>
         <select class="select channel-select" id="channelSelect" aria-label="Filtrar por canal"><option value="">Todos os canais</option></select>
         <button class="icon-btn" id="themeToggle" aria-label="Alternar tema"></button>
         <span class="source-status" id="sourceStatus">Planilha carregada</span>
@@ -1581,12 +1583,16 @@ async function boot(){
     return;
   }
 
-  // Agenda sempre abre no mês atual; o filtro de período continua independente nos demais menus.
+  // A agenda abre no mês atual. O painel começa em jan/26 e termina no mês da última locação;
+  // os dois limites continuam editáveis pelos filtros.
   if(state.reservas.length){
-    const latest = [...state.reservas].sort((a,b)=>parseISO(b.checkin)-parseISO(a.checkin))[0];
+    const latest = state.reservas.reduce((current,r)=>{
+      const end=parseISO(r.checkout)||parseISO(r.checkin);
+      return !current || (end && end>current) ? end : current;
+    },null);
     setAgendaToCurrentMonth();
-    const d0 = parseISO(latest.checkin);
-    state.periodStart = `${d0.getFullYear()}-01`; state.periodEnd = `${d0.getFullYear()}-12`;
+    state.periodStart = '2026-01';
+    state.periodEnd = latest ? monthKey(latest.getFullYear(),latest.getMonth()) : '2026-12';
   } else setAgendaToCurrentMonth();
   render();
   toast(`${state.reservas.length} reserva(s) e ${state.despesas.length} despesa(s) carregadas.`);
