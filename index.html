@@ -233,6 +233,7 @@ select.select{padding:8px 30px 8px 11px; font-weight:600; font-size:13px;}
 .cal-cell.conflict .num{color:var(--coral);}
 .cal-guest{font-size:11px; font-weight:600; line-height:1.25; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
 .cal-tag{font-family:var(--font-mono); font-size:9.5px; color:var(--text-3);}
+.cal-mobile-tag{display:none;}
 .cal-cell .checkbadge{position:absolute; top:6px; right:7px; font-size:8px; font-weight:800; letter-spacing:.3px;}
 
 .cal-summary-bar{display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin-top:18px;}
@@ -418,7 +419,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .mini-grid{grid-template-columns:1fr;}
   .cal-summary-bar{grid-template-columns:repeat(2,minmax(0,1fr));}
   .cal-grid{gap:4px;}
-  .cal-cell{min-height:72px; padding:6px;}
+  .cal-cell{min-height:88px; padding:6px; gap:3px;}
   .report-summary-table{min-width:640px !important;table-layout:auto;}
   .report-summary-table th,.report-summary-table td{padding-left:10px;padding-right:10px;}
   .report-summary-table th:first-child,.report-summary-table td:first-child{min-width:76px;}
@@ -428,7 +429,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   html[data-theme="light"] .cal-cell .num{color:#17332C;font-weight:700;}
   html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
   html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,rgba(14,122,109,.18),#FBFDFC 75%);border-color:#78BCAE;}
-  .cal-guest{font-size:9.5px; -webkit-line-clamp:1;}
+  .cal-guest{font-size:9.5px; line-height:1.2; -webkit-line-clamp:2;}
   /* Mobile only: secondary card content needs enough visual weight in both themes. */
   .card .card-head .hint,
   .kpi .lbl,
@@ -448,6 +449,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .empty-state{color:var(--text-2);font-weight:700;}
   .hero-ring-card > div:last-child{color:var(--text-2) !important;font-weight:700;}
   .cal-tag{display:none;}
+  .cal-mobile-tag{display:-webkit-box;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:1;-webkit-box-orient:vertical;font-size:8.5px;line-height:1.15;color:var(--teal);font-weight:800;}
   .cal-month-label{min-width:0; font-size:16px;}
   #topbar .sub{display:none;}
   #topbar .title-wrap{min-width:0;}
@@ -1067,19 +1069,20 @@ function viewAgenda(){
     const dObj = new Date(y,m,d); const key=toKey(dObj);
     const occ = reservationOnDay(key);
     const isToday = key===todayKey();
-    let cls='available', badge='', guest='', tag='';
+    let cls='available', badge='', guest='', tag='', mobileTag='';
     if(occ.length){
       const hasConfirmed = occ.some(confirmedSt);
       const hasConflict = occ.some(r=>conflictSet.has(r.id));
       cls = hasConflict? 'conflict' : (hasConfirmed? 'rented':'tentative');
       guest = occ.map(r=>r.hospede).join(' + ');
       tag = occ.map(r=>`${r.id} · ${r.imovel||'Casa Cinza'}`).join(', ');
+      mobileTag = occ.map(r=>safeText((r.imovel||'Casa Cinza').replace(/^Casa\s+/i,''))).join(' + ');
       badge = hasConflict? `<span class="checkbadge" style="color:var(--coral)">CONFLITO</span>` : '';
     }
     cells += `<div class="cal-cell ${cls} ${isToday?'today':''}" data-day="${key}">
         ${badge}
         <span class="num">${pad(d)}</span>
-        ${guest? `<span class="cal-guest">${guest}</span><span class="cal-tag">${tag}</span>` : `<span class="cal-tag" style="opacity:.7">Disponível</span>`}
+        ${guest? `<span class="cal-guest">${guest}</span><span class="cal-tag">${tag}</span><span class="cal-mobile-tag">${mobileTag}</span>` : `<span class="cal-tag" style="opacity:.7">Disponível</span>`}
       </div>`;
   }
 
@@ -1128,13 +1131,15 @@ function onDayClick(dateKeyStr){
   if(occ.length){ openDayDetail(dateKeyStr,occ); }
 }
 function openDayDetail(dateKeyStr,occ){
+  const conflictSet = findConflicts();
+  const hasConflict = occ.some(r=>conflictSet.has(r.id));
   openModal(`
     <div class="modal-head"><h2>${fmtDate(dateKeyStr)} — ${occ.length} reservas neste dia</h2>
       <button class="icon-btn" id="mClose">${icon('x',16)}</button></div>
     <div class="modal-body">
       ${occ.map(r=>`<div class="list-row"><div class="avatar">${icon('users',16)}</div>
-        <div class="lr-main"><b>${r.hospede}</b><span>${fmtDate(r.checkin)} → ${fmtDate(r.checkout)} · ${r.status} · ${r.id}</span></div></div>`).join('')}
-      ${occ.length>1?`<div class="form-msg warn show" style="margin-top:14px;">${icon('alert',14)} Estas reservas se sobrepõem. Revise as datas na planilha.</div>`:''}
+        <div class="lr-main"><b>${r.hospede}</b><span>${fmtDate(r.checkin)} → ${fmtDate(r.checkout)} · ${r.status} · ${r.id} · ${r.imovel||'Casa Cinza'}</span></div></div>`).join('')}
+      ${hasConflict?`<div class="form-msg warn show" style="margin-top:14px;">${icon('alert',14)} Estas reservas se sobrepõem na mesma casa. Revise as datas na planilha.</div>`:''}
     </div>`);
   document.getElementById('mClose').addEventListener('click',closeModal);
 }
