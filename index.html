@@ -233,6 +233,7 @@ select.select{padding:8px 30px 8px 11px; font-weight:600; font-size:13px;}
 .cal-cell.conflict .num{color:var(--coral);}
 .cal-guest{font-size:11px; font-weight:600; line-height:1.25; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
 .cal-mobile-guest{display:none;}
+.cal-mobile-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cal-tag{font-family:var(--font-mono); font-size:9.5px; color:var(--text-3);}
 .cal-mobile-tag{display:none;}
 .cal-cell .checkbadge{position:absolute; top:6px; right:7px; font-size:8px; font-weight:800; letter-spacing:.3px;}
@@ -431,7 +432,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
   html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,rgba(14,122,109,.18),#FBFDFC 75%);border-color:#78BCAE;}
   .cal-guest{display:none;}
-  .cal-mobile-guest{display:-webkit-box;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:10px;line-height:1.2;font-weight:700;}
+  .cal-mobile-guest{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:2.5em;font-size:10px;line-height:1.2;font-weight:700;}
   /* Mobile only: secondary card content needs enough visual weight in both themes. */
   .card .card-head .hint,
   .kpi .lbl,
@@ -1104,7 +1105,7 @@ function viewAgenda(){
       const hasConflict = occ.some(r=>conflictSet.has(r.id));
       cls = hasConflict? 'conflict' : (hasConfirmed? 'rented':'tentative');
       guest = occ.map(r=>r.hospede).join(' + ');
-      mobileGuest = occ.map(r=>firstName(r.hospede)).join(' + ');
+      mobileGuest = occ.map(r=>`<span class="cal-mobile-name">${safeText(firstName(r.hospede))}</span>`).join('');
       tag = occ.map(r=>`${r.id} · ${r.imovel||'Casa Cinza'}`).join(', ');
       mobileTag = occ.map(r=>safeText((r.imovel||'Casa Cinza').replace(/^Casa\s+/i,''))).join(' + ');
       badge = hasConflict? `<span class="checkbadge" style="color:var(--coral)">CONFLITO</span>` : '';
