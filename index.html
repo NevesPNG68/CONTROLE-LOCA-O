@@ -1460,12 +1460,12 @@ function viewRelatorios(){
     </div><div class="card report-investment-card"><div class="report-investment-head"><span class="report-investment-emoji" aria-hidden="true">💰</span><div><b>Investimentos no período</b><span>Acompanhamento informativo · não afeta cálculos</span></div><strong class="report-investment-total">${fmtMoney(investmentTotal)}</strong></div><div class="report-investment-list">${investments.length?investments.map(item=>`<span class="report-investment-item"><b>${item.id}</b> · ${fmtMoney(item.valor)}</span>`).join(''):'<span class="hint">Nenhum investimento no período.</span>'}</div></div></div>
     <div class="card">
       <div class="card-head"><h3>Resumo por mês</h3></div>
-      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${ys.numReservas}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${ys.alugadas}</b></div></div>
+      <div class="summary-metrics"><div class="summary-metric"><span>Total de reservas</span><b>${ys.numReservas}</b></div><div class="summary-metric"><span>Total de diárias</span><b>${state.channel==='Cortesia'?ys.cortesia:ys.alugadas}</b></div></div>
       <div class="table-wrap" style="border:none;">
         <table class="report-summary-table" style="min-width:0;">
           <thead><tr><th>Mês</th><th class="num">Reservas</th><th class="num">Diárias</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
-          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td>Total do período</td><td>${ys.numReservas}</td><td>${ys.alugadas}</td><td>${fmtPct(ys.ocupacao)}</td><td>${fmtMoney(ys.receitaConf)}</td><td style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</td></tr></tfoot>
+          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${state.channel==='Cortesia'?m.cortesia:m.alugadas}</td><td class="num">${fmtPct(state.channel==='Cortesia'?m.ocupacaoFisica:m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td>Total do período</td><td>${ys.numReservas}</td><td>${state.channel==='Cortesia'?ys.cortesia:ys.alugadas}</td><td>${fmtPct(state.channel==='Cortesia'?ys.ocupacaoFisica:ys.ocupacao)}</td><td>${fmtMoney(ys.receitaConf)}</td><td style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</td></tr></tfoot>
         </table>
       </div>
     </div>
@@ -1473,7 +1473,7 @@ function viewRelatorios(){
   document.getElementById('view-root').innerHTML = html;
   if(!ensureChartSupport()) return;
   const periodLabels = ys.period.map(item=>item.label);
-  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--chart-occupancy'),backgroundColor:cssv('--chart-occupancy'),fill:true,tension:.35,pointRadius:3}]},
+  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>(state.channel==='Cortesia'?m.ocupacaoFisica:m.ocupacao)*100),borderColor:cssv('--chart-occupancy'),backgroundColor:cssv('--chart-occupancy'),fill:true,tension:.35,pointRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:cssv('--text-3'),font:{size:11}}},y:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(1)+'%'}}}} });
   const adrOptions=chartOpts();
   adrOptions.scales.y.title={display:true,text:'R$ por diária',color:cssv('--text-3'),font:{size:11}};
