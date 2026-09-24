@@ -1633,16 +1633,19 @@ async function boot(){
     return;
   }
 
-  // A agenda abre no mês atual. O painel começa em jan/26 e termina no mês da última locação;
-  // os dois limites continuam editáveis pelos filtros.
+  // A agenda abre no mês atual. O painel começa no primeiro mês com locação
+  // e termina no mês da última locação; os dois limites continuam editáveis.
   if(state.reservas.length){
-    const latest = state.reservas.reduce((current,r)=>{
-      const end=parseISO(r.checkout)||parseISO(r.checkin);
-      return !current || (end && end>current) ? end : current;
-    },null);
+    const bounds = state.reservas.reduce((current,r)=>{
+      const start=parseISO(r.checkin);
+      const end=parseISO(r.checkout)||start;
+      if(start && (!current.first || start<current.first)) current.first=start;
+      if(end && (!current.last || end>current.last)) current.last=end;
+      return current;
+    },{first:null,last:null});
     setAgendaToCurrentMonth();
-    state.periodStart = '2026-01';
-    state.periodEnd = latest ? monthKey(latest.getFullYear(),latest.getMonth()) : '2026-12';
+    state.periodStart = bounds.first ? monthKey(bounds.first.getFullYear(),bounds.first.getMonth()) : '2026-01';
+    state.periodEnd = bounds.last ? monthKey(bounds.last.getFullYear(),bounds.last.getMonth()) : state.periodStart;
   } else setAgendaToCurrentMonth();
   render();
   toast(`${state.reservas.length} reserva(s) e ${state.despesas.length} despesa(s) carregadas.`);
