@@ -734,7 +734,7 @@ function parseDespesas(rows){
 }
 async function loadWorkbookData(){
   if(typeof XLSX==='undefined') throw new Error('O leitor de Excel não foi carregado.');
-  const response=await fetch('Controle_Locacao.xlsx?v='+Date.now(),{cache:'no-store'});
+  const response=await fetch('https://raw.githubusercontent.com/NevesPNG68/CONTROLE-LOCA-O/main/Controle_Locacao.xlsx?v='+Date.now(),{cache:'no-store'});
   if(!response.ok) throw new Error('Não foi possível carregar Controle_Locacao.xlsx.');
   const workbook=XLSX.read(await response.arrayBuffer(),{type:'array',cellDates:true});
   state.reservas=parseReservas(readSheetRows(workbook,'RESERVAS'));
