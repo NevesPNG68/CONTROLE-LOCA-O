@@ -1464,8 +1464,8 @@ function viewRelatorios(){
       <div class="table-wrap" style="border:none;">
         <table class="report-summary-table" style="min-width:0;">
           <thead><tr><th>Mês</th><th class="num">Reservas</th><th class="num">Diárias</th><th class="num">Ocupação</th><th class="num">Receita</th><th class="num">Lucro</th></tr></thead>
-          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${state.channel==='Cortesia'?m.cortesia:m.alugadas}</td><td class="num">${fmtPct(state.channel==='Cortesia'?m.ocupacaoFisica:m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
-          <tfoot><tr><td>Total do período</td><td>${ys.numReservas}</td><td>${state.channel==='Cortesia'?ys.cortesia:ys.alugadas}</td><td>${fmtPct(state.channel==='Cortesia'?ys.ocupacaoFisica:ys.ocupacao)}</td><td>${fmtMoney(ys.receitaConf)}</td><td style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</td></tr></tfoot>
+          <tbody>${ys.months.map((m,i)=>`<tr><td>${ys.period[i].label}</td><td class="num">${m.reservas}</td><td class="num">${state.channel==='Cortesia'?m.cortesia:m.alugadas}</td><td class="num">${fmtPct(m.ocupacao)}</td><td class="num">${fmtMoney(m.receitaConf)}</td><td class="num" style="color:${m.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(m.lucroConf)}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td>Total do período</td><td>${ys.numReservas}</td><td>${state.channel==='Cortesia'?ys.cortesia:ys.alugadas}</td><td>${fmtPct(ys.ocupacao)}</td><td>${fmtMoney(ys.receitaConf)}</td><td style="color:${ys.lucroConf>=0?'var(--teal)':'var(--coral)'}">${fmtMoney(ys.lucroConf)}</td></tr></tfoot>
         </table>
       </div>
     </div>
@@ -1473,7 +1473,7 @@ function viewRelatorios(){
   document.getElementById('view-root').innerHTML = html;
   if(!ensureChartSupport()) return;
   const periodLabels = ys.period.map(item=>item.label);
-  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>(state.channel==='Cortesia'?m.ocupacaoFisica:m.ocupacao)*100),borderColor:cssv('--chart-occupancy'),backgroundColor:cssv('--chart-occupancy'),fill:true,tension:.35,pointRadius:3}]},
+  new Chart(document.getElementById('rOcc'),{ type:'line', data:{ labels:periodLabels, datasets:[{label:'Ocupação',data:ys.months.map(m=>m.ocupacao*100),borderColor:cssv('--chart-occupancy'),backgroundColor:cssv('--chart-occupancy'),fill:true,tension:.35,pointRadius:3}]},
     options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:cssv('--text-3'),font:{size:11}}},y:{grid:{color:cssv('--border-soft')},ticks:{color:cssv('--text-3'),font:{size:10},callback:v=>v+'%'}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw.toFixed(1)+'%'}}}} });
   const adrOptions=chartOpts();
   adrOptions.scales.y.title={display:true,text:'R$ por diária',color:cssv('--text-3'),font:{size:11}};
