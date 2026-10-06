@@ -364,6 +364,21 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .report-channel-row b{display:block;font-size:13px;}
 .report-channel-row span{display:block;margin-top:4px;font-size:11.5px;color:var(--text-3);}
 .report-channel-row .value{text-align:right;font-family:var(--font-mono);font-weight:600;color:var(--teal);}
+.people-intro{margin-bottom:16px;color:var(--text-2);font-size:13px;line-height:1.5;}
+.people-kpis{margin-bottom:16px;}
+.people-kpis .card{min-width:0;}
+.people-chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px;}
+.people-chart-grid .card{min-width:0;}
+.people-chart-grid .chart-box{height:280px;}
+.people-chart-grid .card-head{gap:12px;align-items:flex-start;}
+.people-chart-grid .card-head .hint{text-align:right;}
+.people-property-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px;}
+.people-property-card{display:flex;align-items:center;justify-content:space-between;gap:16px;}
+.people-property-card .property-count{font-family:var(--font-display);font-size:26px;font-weight:700;white-space:nowrap;}
+.people-property-card .property-meta{display:block;margin-top:5px;color:var(--text-2);font-size:12px;}
+.people-detail-table{min-width:620px;}
+.people-detail-table .missing{color:var(--text-2);}
+.people-status-select{width:auto !important;min-width:170px;}
 .two-col{display:grid; grid-template-columns:1.4fr 1fr; gap:16px;}
 .two-col-equal{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px;}
 .two-col > *, .two-col-equal > *{min-width:0;}
@@ -400,6 +415,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .two-col-equal{grid-template-columns:1fr;}
   .form-grid{grid-template-columns:1fr;}
   .form-grid .span2{grid-column:auto;}
+  .people-chart-grid,.people-property-grid{grid-template-columns:1fr;}
   #topbar{padding:14px 16px;}
   #view-root{padding:18px 16px 50px;}
   #topbar{align-items:flex-start;flex-wrap:wrap;}
@@ -419,10 +435,15 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .dashboard-summary-grid{grid-template-columns:1fr;}
   .upcoming-card{grid-column:auto;}
   .mini-grid{grid-template-columns:1fr;}
+  .people-toolbar .toolbar-left,.people-toolbar .dashboard-type-filter{width:100%;}
+  .people-toolbar .dashboard-type-filter button{flex:1;}
+  .people-toolbar .people-status-select{width:100% !important;}
   .cal-summary-bar{grid-template-columns:repeat(2,minmax(0,1fr));}
   .cal-grid{gap:4px;}
   .cal-cell{min-height:88px; padding:6px; gap:3px;}
   .report-summary-table{min-width:640px !important;table-layout:auto;}
+  .people-chart-grid .card-head{flex-wrap:wrap;}
+  .people-chart-grid .card-head .hint{text-align:left;}
   .report-summary-table th,.report-summary-table td{padding-left:10px;padding-right:10px;}
   .report-summary-table th:first-child,.report-summary-table td:first-child{min-width:76px;}
   html[data-theme="light"] .card-head .hint,html[data-theme="light"] .kpi .lbl,html[data-theme="light"] .kpi .delta,html[data-theme="light"] .summary-metric span,html[data-theme="light"] .channel-share,html[data-theme="light"] .sum-chip .l,html[data-theme="light"] .report-channel-row span,html[data-theme="light"] .list-row .lr-main span{color:#36564F;font-weight:700;}
@@ -668,7 +689,7 @@ let state = {
   calYear: 2026,
   reservas: [],
   despesas: [],
-  filters:{ reservas:{ search:'', status:'', canal:'' }, despesas:{ search:'', categoria:'' } },
+  filters:{ reservas:{ search:'', status:'', canal:'' }, despesas:{ search:'', categoria:'' }, pessoas:{tipo:'all',status:''} },
   sidebarOpen:false,
   sourceLoadedAt:null,
 };
@@ -717,14 +738,25 @@ function readSheetRows(workbook,name){
   if(!sheet) throw new Error('A aba "'+name+'" não foi encontrada na planilha.');
   return XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null});
 }
+function personCount(value){
+  if(value===null || value===undefined || value==='') return null;
+  const count=Number(value);
+  return Number.isInteger(count) && count>=0 ? count : null;
+}
 function parseReservas(rows){
-  return rows.slice(5).filter(row=>row[0] && row[1]).map(row=>({
-    id:safeText(row[0]).trim(), hospede:safeText(row[1]).trim(), checkin:excelDateToISO(row[2]), checkout:excelDateToISO(row[3]),
-    valorDiaria:Number(row[5]||0), periodo:safeText(row[7]), status:safeText(row[8]||'Consulta'), canal:safeText(row[9]||'Outro'),
-    agua:Number(row[10]||0), luz:Number(row[11]||0), limpeza:Number(row[12]||0), diarista:Number(row[13]||0),
-    manutencao:Number(row[14]||0), investimento:Number(row[15]||0), taxas:Number(row[16]||0), outros:Number(row[17]||0),
-    recebido:Number(row[23]||0), observacoes:safeText(row[26]), imovel:safeText(row[27]||'Casa Cinza').trim() || 'Casa Cinza'
-  })).filter(r=>r.checkin && r.checkout);
+  return rows.slice(5).filter(row=>row[0] && row[1]).map(row=>{
+    const adultos=personCount(row[28]), criancas=personCount(row[29]);
+    const totalCalculado=(adultos??0)+(criancas??0);
+    const totalInformado=personCount(row[30]);
+    return {
+      id:safeText(row[0]).trim(), hospede:safeText(row[1]).trim(), checkin:excelDateToISO(row[2]), checkout:excelDateToISO(row[3]),
+      valorDiaria:Number(row[5]||0), periodo:safeText(row[7]), status:safeText(row[8]||'Consulta'), canal:safeText(row[9]||'Outro'),
+      agua:Number(row[10]||0), luz:Number(row[11]||0), limpeza:Number(row[12]||0), diarista:Number(row[13]||0),
+      manutencao:Number(row[14]||0), investimento:Number(row[15]||0), taxas:Number(row[16]||0), outros:Number(row[17]||0),
+      recebido:Number(row[23]||0), observacoes:safeText(row[26]), imovel:safeText(row[27]||'Casa Cinza').trim() || 'Casa Cinza',
+      adultos, criancas, pessoas:totalCalculado>0 ? totalCalculado : totalInformado>0 ? totalInformado : null
+    };
+  }).filter(r=>r.checkin && r.checkout);
 }
 function parseDespesas(rows){
   return rows.slice(5).filter(row=>row[0] && Number(row[3]||0)!==0).map((row,index)=>({
@@ -914,6 +946,7 @@ const NAV = [
   {id:'dashboard', label:'Painel', icon:'dashboard', sub:'Visão geral financeira e de ocupação'},
   {id:'agenda', label:'Agenda', icon:'calendar', sub:''},
   {id:'reservas', label:'Reservas', icon:'list', sub:'Todas as locações cadastradas'},
+  {id:'pessoas', label:'Média por Pessoas', icon:'users', sub:'Perfil dos grupos por casa e por locação'},
   {id:'despesas', label:'Despesas da casa', icon:'wallet', sub:'Custos gerais e vinculados a reservas'},
   {id:'relatorios', label:'Relatórios', icon:'chart', sub:'Tendências, canais e indicadores'},
   {id:'config', label:'Configurações', icon:'settings', sub:'Tema e origem dos dados'},
@@ -1482,6 +1515,81 @@ function viewRelatorios(){
 }
 
 /* ================================================================
+   VIEW: MÉDIA POR PESSOAS
+   ================================================================ */
+let peopleCharts=[];
+function clearPeopleCharts(){
+  peopleCharts.forEach(chart=>chart.destroy());
+  peopleCharts=[];
+}
+function peopleSummary(reservas){
+  const informadas=reservas.filter(r=>r.pessoas>0);
+  const total=informadas.reduce((sum,r)=>sum+r.pessoas,0);
+  return {media:informadas.length?total/informadas.length:null,informadas:informadas.length,semInformacao:reservas.length-informadas.length,total};
+}
+function fmtPeopleAverage(value){
+  return value===null?'—':value.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1});
+}
+function viewPessoas(){
+  clearPeopleCharts();
+  const filtro=state.filters.pessoas;
+  const reservas=state.reservas.filter(r=>channelMatches(r) && reservationInPeriod(r)
+    && (filtro.tipo==='all' || (filtro.tipo==='courtesy'?isCourtesy(r):!isCourtesy(r)))
+    && (!filtro.status || r.status===filtro.status));
+  const comPessoas=reservas.filter(r=>r.pessoas>0);
+  const resumo=peopleSummary(reservas);
+  const casas=IMOVEL_LIST.filter(nome=>!state.property || state.property===nome);
+  const porCasa=casas.map(nome=>({nome,...peopleSummary(reservas.filter(r=>(r.imovel||'Casa Cinza')===nome))}));
+  const comComposicao=comPessoas.filter(r=>(r.adultos??0)+(r.criancas??0)===r.pessoas);
+  const adultos=comComposicao.reduce((sum,r)=>sum+(r.adultos??0),0);
+  const criancas=comComposicao.reduce((sum,r)=>sum+(r.criancas??0),0);
+  const meses=periodMonths().map(item=>({year:item.year,month:item.month,label:item.label}));
+  const distribuicao=new Map();
+  comPessoas.forEach(r=>distribuicao.set(r.pessoas,(distribuicao.get(r.pessoas)||0)+1));
+  const tamanhos=[...distribuicao.keys()].sort((a,b)=>a-b);
+  const html=`
+    <div class="toolbar people-toolbar"><div class="toolbar-left"><span class="hint">Tipo de locação</span><div class="dashboard-type-filter" role="group" aria-label="Filtrar locações por tipo">${[['all','Todas'],['commercial','Comerciais'],['courtesy','Cortesias']].map(([valor,label])=>`<button type="button" class="${filtro.tipo===valor?'is-active':''}" data-people-type="${valor}" aria-pressed="${filtro.tipo===valor}">${label}</button>`).join('')}</div><select class="select people-status-select" id="peopleStatus" aria-label="Filtrar locações por status"><option value="">Todos os status</option>${STATUS_LIST.map(status=>`<option value="${status}" ${filtro.status===status?'selected':''}>${status}</option>`).join('')}</select></div></div>
+    <p class="people-intro">Média de pessoas por locação no período ${periodLabel()}. Reservas sem total informado não entram na média. Os indicadores respeitam os filtros de casa, canal, tipo e status.</p>
+    <div class="grid g-kpi people-kpis">
+      <div class="card kpi kpi-accent-teal"><span class="lbl">Média de pessoas</span><span class="val">${fmtPeopleAverage(resumo.media)}</span><span class="delta">${resumo.informadas} locação(ões) com pessoas informadas</span></div>
+      <div class="card kpi kpi-accent-gold"><span class="lbl">Pessoas registradas</span><span class="val">${fmtNum(resumo.total)}</span><span class="delta">soma dos grupos informados</span></div>
+      <div class="card kpi"><span class="lbl">Locações analisadas</span><span class="val">${fmtNum(reservas.length)}</span><span class="delta">no período e filtros atuais</span></div>
+      <div class="card kpi ${resumo.semInformacao?'kpi-accent-coral':''}"><span class="lbl">Sem informação</span><span class="val">${fmtNum(resumo.semInformacao)}</span><span class="delta">locação(ões) ainda sem total</span></div>
+    </div>
+    <div class="people-property-grid">${porCasa.map(casa=>`
+      <div class="card people-property-card"><div><h3>${casa.nome}</h3><span class="property-meta">${casa.informadas} com pessoas · ${casa.semInformacao} sem informação</span></div><div class="property-count" style="color:${casa.nome==='Casa Cinza'?'var(--teal)':'var(--gold)'}">${fmtPeopleAverage(casa.media)}</div></div>`).join('')}</div>
+    ${comPessoas.length?`<div class="people-chart-grid">
+      <div class="card chart-card"><div class="card-head"><h3>Média por mês</h3><span class="hint">Locações ativas em cada mês</span></div><div class="chart-box"><canvas id="peopleMonthly" role="img" aria-label="Gráfico da média de pessoas por mês e por casa"></canvas></div></div>
+      <div class="card chart-card"><div class="card-head"><h3>Tamanho dos grupos</h3><span class="hint">Locações por total de pessoas</span></div><div class="chart-box"><canvas id="peopleDistribution" role="img" aria-label="Gráfico da distribuição das locações por tamanho do grupo"></canvas></div></div>
+      ${adultos+criancas>0?`<div class="card chart-card"><div class="card-head"><h3>Adultos e crianças</h3><span class="hint">Soma dos grupos com composição informada</span></div><div class="chart-box"><canvas id="peopleComposition" role="img" aria-label="Gráfico da composição dos grupos entre adultos e crianças"></canvas></div></div>`:''}
+    </div>`:`<div class="card empty-state">${icon('users',34)}<b>${reservas.length?'Nenhuma locação com pessoas informadas':'Nenhuma locação neste filtro'}</b>${reservas.length?'Preencha as colunas Adultos e Crianças na planilha para ver os gráficos.':'Ajuste período, casa, canal, tipo ou status para ver os indicadores.'}</div>`}
+    <div class="card"><div class="card-head"><h3>Pessoas por locação</h3><span class="hint">${reservas.length} locação(ões) no filtro</span></div>
+      <div class="table-wrap" style="border:none;">
+        <table class="people-detail-table"><thead><tr><th>Locação</th><th>Casa</th><th>Entrada</th><th class="num">Adultos</th><th class="num">Crianças</th><th class="num">Total</th></tr></thead>
+        <tbody>${reservas.length?reservas.slice().sort((a,b)=>parseISO(a.checkin)-parseISO(b.checkin)).map(r=>`<tr><td><b>${r.id}</b><small style="display:block;color:var(--text-3);font-size:11px;">${r.hospede}</small></td><td>${r.imovel||'Casa Cinza'}</td><td>${fmtDate(r.checkin)}</td><td class="num">${r.adultos??'—'}</td><td class="num">${r.criancas??'—'}</td><td class="num ${r.pessoas===null?'missing':''}">${r.pessoas??'Não informado'}</td></tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text-2);">Nenhuma locação corresponde aos filtros.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+  document.getElementById('view-root').innerHTML=html;
+  document.querySelectorAll('[data-people-type]').forEach(button=>button.addEventListener('click',()=>{state.filters.pessoas.tipo=button.dataset.peopleType;viewPessoas();}));
+  document.getElementById('peopleStatus').addEventListener('change',event=>{state.filters.pessoas.status=event.target.value;viewPessoas();});
+  if(!comPessoas.length || !ensureChartSupport()) return;
+  const chartText=cssv('--text-2'), chartMuted=cssv('--text-3'), chartGrid=cssv('--border-soft');
+  peopleCharts.push(new Chart(document.getElementById('peopleMonthly'),{
+    type:'line',data:{labels:meses.map(item=>item.label),datasets:casas.map(nome=>({
+      label:nome,data:meses.map(item=>peopleSummary(comPessoas.filter(r=>(r.imovel||'Casa Cinza')===nome && nightsInMonth(r,item.year,item.month)>0)).media),
+      borderColor:cssv(nome==='Casa Cinza'?'--teal':'--gold'),backgroundColor:cssv(nome==='Casa Cinza'?'--teal-glow':'--gold-glow'),pointBackgroundColor:cssv(nome==='Casa Cinza'?'--teal':'--gold'),
+      fill:true,tension:.32,spanGaps:false,pointRadius:4,pointHoverRadius:6,borderWidth:2.5
+    }))},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{x:{grid:{display:false},ticks:{color:chartMuted,font:{size:11}}},y:{beginAtZero:true,grid:{color:chartGrid},ticks:{color:chartMuted,precision:0}}},plugins:{legend:{position:'bottom',labels:{color:chartText,boxWidth:12}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmtPeopleAverage(c.raw)} pessoa(s)`}}}}}));
+  peopleCharts.push(new Chart(document.getElementById('peopleDistribution'),{
+    type:'bar',data:{labels:tamanhos.map(n=>`${n} ${n===1?'pessoa':'pessoas'}`),datasets:[{label:'Locações',data:tamanhos.map(n=>distribuicao.get(n)),backgroundColor:tamanhos.map((_,index)=>[cssv('--teal'),cssv('--chart-courtesy'),cssv('--gold'),cssv('--chart-costs'),cssv('--coral')][index%5]),borderRadius:7,maxBarThickness:48}]},
+    options:{responsive:true,maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:chartMuted,font:{size:11}}},y:{beginAtZero:true,grid:{color:chartGrid},ticks:{color:chartMuted,precision:0}}},plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.raw} locação(ões)`}}}}}));
+  if(adultos+criancas>0) peopleCharts.push(new Chart(document.getElementById('peopleComposition'),{
+    type:'doughnut',data:{labels:['Adultos','Crianças'],datasets:[{data:[adultos,criancas],backgroundColor:[cssv('--teal'),cssv('--chart-courtesy')],borderColor:cssv('--bg-2'),borderWidth:3,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',plugins:{legend:{position:'bottom',labels:{color:chartText,boxWidth:12}},tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw} pessoa(s)`}}}}}));
+}
+
+/* ================================================================
    VIEW: CONFIGURAÇÕES
    ================================================================ */
 function viewConfig(){
@@ -1602,6 +1710,7 @@ document.getElementById('propertySelect').addEventListener('change',e=>{ state.p
 
 /* ---------------- MAIN RENDER DISPATCH ---------------- */
 function render(){
+  if(state.view!=='pessoas') clearPeopleCharts();
   renderNav();
   syncSidebar();
   document.getElementById('topbar').classList.toggle('agenda-view',state.view==='agenda');
@@ -1611,7 +1720,7 @@ function render(){
   syncPropertySelect();
   syncChannelSelect();
   updateThemeIcon();
-  const map = {dashboard:viewDashboard, agenda:viewAgenda, reservas:viewReservas, despesas:viewDespesas, relatorios:viewRelatorios, config:viewConfig};
+  const map = {dashboard:viewDashboard, agenda:viewAgenda, reservas:viewReservas, pessoas:viewPessoas, despesas:viewDespesas, relatorios:viewRelatorios, config:viewConfig};
   (map[state.view]||viewDashboard)();
 }
 
