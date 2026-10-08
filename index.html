@@ -21,7 +21,7 @@ html[data-theme="dark"]{
   --bg:#0A1513; --bg-1:#0E1B19; --bg-2:#132623; --bg-3:#183330;
   --border:#1E3936; --border-soft:#16302C;
   --text-1:#EAF3F0; --text-2:#9DB3AE; --text-3:#5E7873;
-  --teal:#33C9B8; --teal-dim:#1D6E64; --teal-glow:rgba(51,201,184,.16);
+  --teal:#33C9B8; --teal-dim:#1D6E64; --teal-glow:rgba(51,201,184,.16); --rented-bg:rgba(51,201,184,.28); --rented-bg-soft:rgba(51,201,184,.12);
   --gold:#EFB24A; --gold-dim:#8A6420; --gold-glow:rgba(239,178,74,.14);
   --coral:#F0705A; --coral-dim:#7A3327; --coral-glow:rgba(240,112,90,.16);
   --holiday:#FFF200; --holiday-text:#FFF879; --holiday-border:#E1C700; --holiday-bg:rgba(255,242,0,.28); --holiday-glow:rgba(255,242,0,.24);
@@ -33,7 +33,7 @@ html[data-theme="light"]{
   --bg:#E5ECE9; --bg-1:#F3F7F5; --bg-2:#FFFFFF; --bg-3:#F8FAF9;
   --border:#BFCFC9; --border-soft:#D1DDD9;
   --text-1:#0E211E; --text-2:#344E49; --text-3:#5B746E;
-  --teal:#0E7A6D; --teal-dim:#B9E2DA; --teal-glow:rgba(14,122,109,.14);
+  --teal:#0E7A6D; --teal-dim:#B9E2DA; --teal-glow:rgba(14,122,109,.14); --rented-bg:rgba(14,122,109,.28); --rented-bg-soft:rgba(14,122,109,.12);
   --gold:#956400; --gold-dim:#F3D89F; --gold-glow:rgba(149,100,0,.14);
   --coral:#B43B28; --coral-dim:#F2C7BE; --coral-glow:rgba(180,59,40,.13);
   --holiday:#FFF200; --holiday-text:#4D4000; --holiday-border:#C8A800; --holiday-bg:rgba(255,242,0,.58); --holiday-glow:rgba(255,226,0,.42);
@@ -227,7 +227,7 @@ select.select{padding:8px 30px 8px 11px; font-weight:600; font-size:13px;}
   content:""; position:absolute; left:8px; right:8px; bottom:7px; height:2px; border-radius:2px;
   background:repeating-linear-gradient(90deg,var(--teal-dim) 0 5px, transparent 5px 9px); opacity:.55;
 }
-.cal-cell.rented{background:linear-gradient(160deg,var(--teal-glow),var(--bg-1) 75%); border-color:var(--teal-dim);}
+.cal-cell.rented{background:linear-gradient(160deg,var(--rented-bg),var(--rented-bg-soft) 52%,var(--bg-1) 92%); border-color:var(--teal); box-shadow:inset 0 0 0 1px var(--teal-dim), 0 0 12px var(--rented-bg-soft);}
 .cal-cell.rented .num{color:var(--teal);}
 .cal-cell.tentative{background:linear-gradient(160deg,var(--gold-glow),var(--bg-1) 75%); border-color:var(--gold-dim); border-style:dashed;}
 .cal-cell.tentative .num{color:var(--gold);}
@@ -238,6 +238,9 @@ select.select{padding:8px 30px 8px 11px; font-weight:600; font-size:13px;}
 .cal-cell.holiday.rented{border-color:var(--teal-dim); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--teal-dim), 0 0 18px var(--holiday-glow);}
 .cal-cell.holiday.tentative{border-color:var(--gold-dim); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--gold-dim), 0 0 18px var(--holiday-glow);}
 .cal-cell.holiday.conflict{border-color:var(--coral); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--coral), 0 0 18px var(--holiday-glow);}
+.cal-cell.today{border:2px solid var(--coral); box-shadow:0 0 0 2px var(--coral-glow), inset 0 0 0 1px var(--coral);}
+.cal-cell.today .num{color:var(--coral);}
+.cal-cell.today.holiday{box-shadow:0 0 0 2px var(--coral-glow), inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--coral);}
 .cal-holiday{display:flex; align-items:center; gap:4px; min-width:0; color:var(--holiday-text); font-size:9.5px; font-weight:800; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 0 7px var(--holiday-glow);}
 .cal-holiday svg{flex:0 0 auto;}
 .cal-holiday-status{display:inline-flex; align-items:center; gap:5px; min-height:24px; color:var(--text-3); font-size:11px; font-weight:600;}
@@ -315,6 +318,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
 .form-msg.show{display:block;}
 .form-msg.error{background:var(--coral-glow); color:var(--coral); border:1px solid var(--coral-dim);}
 .form-msg.warn{background:var(--gold-glow); color:var(--gold); border:1px solid var(--gold-dim);}
+.form-msg.holiday-notice{background:var(--holiday-bg); color:var(--holiday-text); border:1px solid var(--holiday-border); box-shadow:0 0 0 1px var(--holiday-border), 0 0 14px var(--holiday-glow);}
 
 /* toggle switch */
 .switch{position:relative; width:46px; height:26px; border-radius:20px; background:var(--bg-3); border:1px solid var(--border); flex-shrink:0;}
@@ -463,7 +467,7 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   html[data-theme="light"] .cal-cell{background:#FBFDFC;border-color:#B7C9C3;}
   html[data-theme="light"] .cal-cell .num{color:#17332C;font-weight:700;}
   html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
-  html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,rgba(14,122,109,.18),#FBFDFC 75%);border-color:#78BCAE;}
+  html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,var(--rented-bg),var(--rented-bg-soft) 52%,#FBFDFC 92%);border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-dim),0 0 12px var(--rented-bg-soft);}
   .cal-guest{display:none;}
   .cal-mobile-guest{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:2.5em;font-size:10px;line-height:1.2;font-weight:700;}
   /* Mobile only: secondary card content needs enough visual weight in both themes. */
@@ -1301,10 +1305,12 @@ function onDayClick(dateKeyStr){
 function openDayDetail(dateKeyStr,occ){
   const conflictSet = findConflicts();
   const hasConflict = occ.some(r=>conflictSet.has(r.id));
+  const holiday = holidayMapForYear(parseISO(dateKeyStr).getFullYear()).get(dateKeyStr);
   openModal(`
     <div class="modal-head"><h2>${fmtDate(dateKeyStr)} — ${occ.length} reservas neste dia</h2>
       <button class="icon-btn" id="mClose">${icon('x',16)}</button></div>
     <div class="modal-body">
+      ${holiday?`<div class="form-msg holiday-notice show" style="margin-bottom:14px;">${icon('sun',14)} <b>Feriado nacional:</b> ${safeText(holiday.name)}</div>`:''}
       ${occ.map(r=>`<div class="list-row"><div class="avatar">${icon('users',16)}</div>
         <div class="lr-main"><b>${r.hospede}</b><span>Diárias: ${computeR(r).nights} · Casa: ${r.imovel||'Casa Cinza'} · ${fmtDate(r.checkin)} → ${fmtDate(r.checkout)} · ${r.status} · ${r.id}</span></div></div>`).join('')}
       ${hasConflict?`<div class="form-msg warn show" style="margin-top:14px;">${icon('alert',14)} Estas reservas se sobrepõem na mesma casa. Revise as datas na planilha.</div>`:''}
