@@ -464,10 +464,10 @@ legend{font-size:11.5px; font-weight:700; color:var(--teal); padding:0 6px; text
   .report-summary-table th:first-child,.report-summary-table td:first-child{min-width:76px;}
   html[data-theme="light"] .card-head .hint,html[data-theme="light"] .kpi .lbl,html[data-theme="light"] .kpi .delta,html[data-theme="light"] .summary-metric span,html[data-theme="light"] .channel-share,html[data-theme="light"] .sum-chip .l,html[data-theme="light"] .report-channel-row span,html[data-theme="light"] .list-row .lr-main span{color:#36564F;font-weight:700;}
   html[data-theme="light"] .cal-dow,html[data-theme="light"] .cal-legend{color:#29463F;font-weight:700;}
-  html[data-theme="light"] .cal-cell{background:#FBFDFC;border-color:#B7C9C3;}
+  html[data-theme="light"] .cal-cell:not(.holiday){background:#FBFDFC;border-color:#B7C9C3;}
   html[data-theme="light"] .cal-cell .num{color:#17332C;font-weight:700;}
   html[data-theme="light"] .cal-cell .cal-guest{color:#10251F;font-weight:700;}
-  html[data-theme="light"] .cal-cell.rented{background:linear-gradient(160deg,var(--rented-bg),var(--rented-bg-soft) 52%,#FBFDFC 92%);border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-dim),0 0 12px var(--rented-bg-soft);}
+  html[data-theme="light"] .cal-cell.rented:not(.holiday){background:linear-gradient(160deg,var(--rented-bg),var(--rented-bg-soft) 52%,#FBFDFC 92%);border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal-dim),0 0 12px var(--rented-bg-soft);}
   .cal-guest{display:none;}
   .cal-mobile-guest{display:flex;flex-direction:column;gap:1px;overflow:hidden;max-height:2.5em;font-size:10px;line-height:1.2;font-weight:700;}
   /* Mobile only: secondary card content needs enough visual weight in both themes. */
