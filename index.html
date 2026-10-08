@@ -24,6 +24,7 @@ html[data-theme="dark"]{
   --teal:#33C9B8; --teal-dim:#1D6E64; --teal-glow:rgba(51,201,184,.16);
   --gold:#EFB24A; --gold-dim:#8A6420; --gold-glow:rgba(239,178,74,.14);
   --coral:#F0705A; --coral-dim:#7A3327; --coral-glow:rgba(240,112,90,.16);
+  --holiday:#FFF200; --holiday-text:#FFF879; --holiday-border:#E1C700; --holiday-bg:rgba(255,242,0,.28); --holiday-glow:rgba(255,242,0,.24);
   --chart-revenue:#FFD166; --chart-profit:#A3E635; --chart-costs:#B07CFF; --chart-courtesy:#4EA7FF;
   --chart-occupancy:#4EA7FF; --chart-adr:#FFD166;
   --shadow:0 12px 32px rgba(0,0,0,.35);
@@ -35,6 +36,7 @@ html[data-theme="light"]{
   --teal:#0E7A6D; --teal-dim:#B9E2DA; --teal-glow:rgba(14,122,109,.14);
   --gold:#956400; --gold-dim:#F3D89F; --gold-glow:rgba(149,100,0,.14);
   --coral:#B43B28; --coral-dim:#F2C7BE; --coral-glow:rgba(180,59,40,.13);
+  --holiday:#FFF200; --holiday-text:#4D4000; --holiday-border:#C8A800; --holiday-bg:rgba(255,242,0,.58); --holiday-glow:rgba(255,226,0,.42);
   --chart-revenue:#A66A00; --chart-profit:#4D7C0F; --chart-costs:#7C3AED; --chart-courtesy:#2563EB;
   --chart-occupancy:#2563EB; --chart-adr:#A66A00;
   --shadow:0 12px 28px rgba(20,40,35,.14);
@@ -231,6 +233,16 @@ select.select{padding:8px 30px 8px 11px; font-weight:600; font-size:13px;}
 .cal-cell.tentative .num{color:var(--gold);}
 .cal-cell.conflict{background:repeating-linear-gradient(135deg,var(--coral-glow) 0 8px, transparent 8px 16px), var(--bg-1); border-color:var(--coral);}
 .cal-cell.conflict .num{color:var(--coral);}
+.cal-cell.holiday{background:linear-gradient(160deg,var(--holiday-bg),var(--bg-1) 86%); border-color:var(--holiday-border); box-shadow:inset 0 3px 0 var(--holiday), 0 0 0 1px var(--holiday-border), 0 0 18px var(--holiday-glow);}
+.cal-cell.holiday .num{color:var(--holiday-text);}
+.cal-cell.holiday.rented{border-color:var(--teal-dim); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--teal-dim), 0 0 18px var(--holiday-glow);}
+.cal-cell.holiday.tentative{border-color:var(--gold-dim); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--gold-dim), 0 0 18px var(--holiday-glow);}
+.cal-cell.holiday.conflict{border-color:var(--coral); box-shadow:inset 0 3px 0 var(--holiday), inset 0 0 0 1px var(--coral), 0 0 18px var(--holiday-glow);}
+.cal-holiday{display:flex; align-items:center; gap:4px; min-width:0; color:var(--holiday-text); font-size:9.5px; font-weight:800; line-height:1.15; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 0 7px var(--holiday-glow);}
+.cal-holiday svg{flex:0 0 auto;}
+.cal-holiday-status{display:inline-flex; align-items:center; gap:5px; min-height:24px; color:var(--text-3); font-size:11px; font-weight:600;}
+.cal-holiday-status.loading{color:var(--gold);}
+.cal-holiday-status.error{color:var(--coral);}
 .cal-guest{font-size:11px; font-weight:600; line-height:1.25; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;}
 .cal-mobile-guest{display:none;}
 .cal-mobile-name{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -694,6 +706,13 @@ let state = {
   sourceLoadedAt:null,
 };
 
+const HOLIDAY_CACHE_TTL = 7*24*60*60*1000;
+const holidayRuntime = {
+  cache:new Map(),
+  pending:new Map(),
+  status:{state:'idle',year:null,source:'',message:''}
+};
+
 /* ---------------- DATE HELPERS ---------------- */
 function pad(n){return String(n).padStart(2,'0');}
 function toKey(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
@@ -772,6 +791,81 @@ async function loadWorkbookData(){
   state.reservas=parseReservas(readSheetRows(workbook,'RESERVAS'));
   state.despesas=parseDespesas(readSheetRows(workbook,'DESPESAS CASA'));
   state.sourceLoadedAt=new Date();
+}
+function normalizeHolidayItems(payload){
+  const items = Array.isArray(payload) ? payload : Array.isArray(payload?.holidays) ? payload.holidays : [];
+  const seen = new Set();
+  return items.map(item=>{
+    const date=String(item?.date||'').slice(0,10);
+    const name=String(item?.name||item?.localName||'Feriado').trim();
+    const national=item?.nationalHoliday!==false && item?.global!==false;
+    return {date,name,national};
+  }).filter(item=>/^\d{4}-\d{2}-\d{2}$/.test(item.date) && item.name && item.national && !seen.has(item.date) && seen.add(item.date))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+async function fetchJsonWithTimeout(url){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(),8000);
+  try{
+    const response=await fetch(url,{headers:{Accept:'application/json'},signal:controller.signal,cache:'no-store'});
+    if(!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
+  }finally{ clearTimeout(timer); }
+}
+async function fetchHolidaysFromSources(year){
+  const sources=[
+    {name:'BrasilAPI',url:`https://brasilapi.com.br/api/feriados/v1/${year}`},
+    {name:'Nager.Date',url:`https://date.nager.at/api/v4/Holidays/BR/${year}`},
+    {name:'Nager.Date',url:`https://date.nager.at/api/v3/PublicHolidays/${year}/BR`}
+  ];
+  let lastError=null;
+  for(const source of sources){
+    try{
+      const items=normalizeHolidayItems(await fetchJsonWithTimeout(source.url));
+      return {items,source:source.name};
+    }catch(error){ lastError=error; }
+  }
+  throw lastError||new Error('Nenhuma fonte de feriados respondeu.');
+}
+function holidaysForYear(year){ return holidayRuntime.cache.get(year)?.items||[]; }
+function holidayMapForYear(year){ return new Map(holidaysForYear(year).map(item=>[item.date,item])); }
+function renderAgendaIfCurrentYear(year){
+  if(state.view==='agenda' && state.calYear===year) render();
+}
+function ensureHolidaysForYear(year){
+  const cachedEntry=holidayRuntime.cache.get(year);
+  if(cachedEntry?.savedAt && Date.now()-cachedEntry.savedAt < HOLIDAY_CACHE_TTL) return Promise.resolve(cachedEntry.items);
+  if(holidayRuntime.pending.has(year)) return holidayRuntime.pending.get(year);
+  holidayRuntime.status={state:'loading',year,source:'',message:''};
+  const request=(async()=>{
+    let cached=null;
+    try{ cached=await StorageAPI.get(`holidays-br-${year}`); }catch(error){ cached=null; }
+    if(cached && Array.isArray(cached.items)) holidayRuntime.cache.set(year,cached);
+    const isFresh=cached?.savedAt && Date.now()-cached.savedAt < HOLIDAY_CACHE_TTL;
+    if(isFresh){
+      holidayRuntime.status={state:'ready',year,source:cached.source||'cache local',message:''};
+      renderAgendaIfCurrentYear(year);
+      return cached.items;
+    }
+    holidayRuntime.status={state:'loading',year,source:'',message:''};
+    try{
+      const result=await fetchHolidaysFromSources(year);
+      const entry={savedAt:Date.now(),source:result.source,items:result.items};
+      holidayRuntime.cache.set(year,entry);
+      await StorageAPI.set(`holidays-br-${year}`,entry);
+      holidayRuntime.status={state:'ready',year,source:result.source,message:''};
+      renderAgendaIfCurrentYear(year);
+      return result.items;
+    }catch(error){
+      const fallback=cached?.items||[];
+      holidayRuntime.status={state:'error',year,source:cached?.source||'',message:error?.message||'offline'};
+      renderAgendaIfCurrentYear(year);
+      return fallback;
+    }
+  })();
+  holidayRuntime.pending.set(year,request);
+  request.finally(()=>holidayRuntime.pending.delete(year));
+  return request;
 }
 function updateSourceStatus(error){
   const el=document.getElementById('sourceStatus'); if(!el) return;
@@ -1121,16 +1215,22 @@ function reservationOnDay(dateKeyStr){
 }
 function viewAgenda(){
   const y=state.calYear, m=state.calMonth;
+  ensureHolidaysForYear(y);
+  const holidays=holidayMapForYear(y);
   const first = new Date(y,m,1);
   const startOffset = (first.getDay()+6)%7; // Monday=0
   const total = daysInMonth(y,m);
   const conflictSet = findConflicts();
+  const holidayState=holidayRuntime.status.year===y ? holidayRuntime.status.state : 'idle';
+  const holidayStatusIcon=holidayState==='loading'?'refresh':holidayState==='error'?'alert':'sun';
+  const holidayStatusText=holidayState==='loading'?'Atualizando feriados nacionais…':holidayState==='error'?'Feriados indisponíveis · modo offline':holidayState==='ready'?`Feriados nacionais · ${holidayRuntime.status.source}`:'Feriados nacionais';
 
   let cells = '';
   for(let i=0;i<startOffset;i++) cells += `<div class="cal-cell blank"></div>`;
   for(let d=1; d<=total; d++){
     const dObj = new Date(y,m,d); const key=toKey(dObj);
     const occ = reservationOnDay(key);
+    const holiday=holidays.get(key);
     const isToday = key===todayKey();
     let cls='available', badge='', guest='', mobileGuest='', tag='', mobileTag='';
     if(occ.length){
@@ -1143,9 +1243,11 @@ function viewAgenda(){
       mobileTag = occ.map(r=>safeText((r.imovel||'Casa Cinza').replace(/^Casa\s+/i,''))).join(' + ');
       badge = hasConflict? `<span class="checkbadge" style="color:var(--coral)">CONFLITO</span>` : '';
     }
-    cells += `<div class="cal-cell ${cls} ${isToday?'today':''}" data-day="${key}">
+    const holidayLabel=holiday?`<span class="cal-holiday" title="${safeText(holiday.name)}">${icon('sun',11)}<span>${safeText(holiday.name)}</span></span>`:'';
+    cells += `<div class="cal-cell ${cls} ${holiday?'holiday':''} ${isToday?'today':''}" data-day="${key}">
         ${badge}
         <span class="num">${pad(d)}</span>
+        ${holidayLabel}
         ${guest? `<span class="cal-guest">${guest}</span><span class="cal-mobile-guest">${mobileGuest}</span><span class="cal-tag">${tag}</span><span class="cal-mobile-tag">${mobileTag}</span>` : `<span class="cal-tag" style="opacity:.7">Disponível</span>`}
       </div>`;
   }
@@ -1166,7 +1268,9 @@ function viewAgenda(){
         <span class="item"><span class="legend-swatch" style="background:var(--gold-glow);border:1px dashed var(--gold-dim)"></span>Pré-reserva</span>
         <span class="item"><span class="legend-swatch" style="background:var(--bg-1);border:1px solid var(--border-soft)"></span>Disponível</span>
         <span class="item"><span class="legend-swatch" style="background:var(--coral-glow);border:1px solid var(--coral)"></span>Conflito</span>
+        <span class="item"><span class="legend-swatch" style="background:var(--holiday-bg);border:1px solid var(--holiday-border)"></span>Feriado nacional</span>
       </div>
+      <div class="cal-holiday-status ${holidayState==='loading'?'loading':holidayState==='error'?'error':''}">${icon(holidayStatusIcon,13)}<span>${holidayStatusText}</span></div>
     </div>
     <div class="cal-grid">
       ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
